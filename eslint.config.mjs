@@ -10,7 +10,12 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: true }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
+  },
+  {
+    files: ['**/jest.config.js'],
+    languageOptions: { sourceType: 'commonjs', globals: { module: 'writable' } },
   },
   {
     files: ['**/*.mjs'],

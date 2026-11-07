@@ -9,19 +9,25 @@ no signals → logs → traces → business context → an AI agent doing the sa
 Venue Wi-Fi is unreliable: pull everything beforehand.
 
 **You need**: Docker Desktop (macOS / Windows with WSL2) or Docker Engine (Linux) with
-**≥ 4 GB RAM** assigned to Docker, `git`, `make`, `curl`. Windows: run everything
-from a WSL2 terminal.
+**≥ 4 GB RAM** assigned to Docker (6 GB is comfortable), **~15 GB of free disk** (images ~7 GB + build cache ~6 GB), `git`,
+`make`, `curl`. Windows: clone and run everything **inside** a WSL2 terminal — see
+[docs/windows-wsl2.md](docs/windows-wsl2.md).
 
 ```sh
-git clone <repo-url> otel-incident-lab
+git clone https://github.com/fredpalas/otel-incident-lab.git
 cd otel-incident-lab
 make doctor   # checks Docker, RAM, ports
-make pull     # downloads and builds everything (~2 GB)
+make pull     # downloads and builds everything; afterwards no network is needed
 make up       # starts the stack
 ```
 
 Open Grafana at <http://localhost:3000>. If it loads, you're ready. `make down`
 until the workshop.
+
+**Plan B — GitHub Codespaces.** If your laptop can't run it, open the repo in a
+codespace (Code → Codespaces → *Create codespace*, 4-core machine). The devcontainer
+runs `make pull` and `make up` for you; Grafana opens on the forwarded port 3000.
+It needs network, so do it before the session too.
 
 ## During the workshop
 
@@ -48,8 +54,9 @@ Lab 5 replays an investigation with an AI agent connected to Grafana over MCP �
 it only works as well as the telemetry you built in labs 1–4.
 
 So this repo ships a **coach mode** for AI agents (Claude Code, Copilot, Cursor,
-Codex, Gemini…), driven by [`AGENTS.md`](AGENTS.md) and the active lab in
-`.lab-state`. During labs 1–4 your agent will explain concepts, help with Docker or
+Codex, Gemini, opencode…), driven by [`AGENTS.md`](AGENTS.md) and the active lab in
+`.lab-state` (Claude Code also gets hooks; opencode gets the permissions in
+`opencode.json`, unlocked on the lab 5 checkpoint). During labs 1–4 your agent will explain concepts, help with Docker or
 environment problems (always fair game!), and give hints — but it won't write the
 fix or read the solutions for you. From lab 5 it becomes a full agent.
 

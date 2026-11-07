@@ -32,7 +32,11 @@ make verify N=<n>   # tells you if you're done
    `upstream error` / `socket hang up` in **three** services (D2). Where does it start?
    → cliffhanger for lab 2.
 
-**Collector**: logs pipeline only. **Verify-1**: D1 checks.
+**Collector**: logs pipeline only — shipped at `lab-1-start`; participants read it, they
+don't write it (no time in 20'). **Verify-1**: D1 checks.
+
+All npm/composer dependencies for every lab are declared at `lab-1-start` (unused until
+needed) so `make pull` can cache them: the venue network is unreliable.
 
 ## Lab 2 — Traces (30')
 

@@ -24,7 +24,9 @@ const PROTECTED_READ = [
   /^docs\/authoring(\/|$)/,
   /^scenarios\/incident-5(\/|$)/,
 ];
-const OBSERVABILITY_MCP = /^mcp__.*(grafana|tempo|loki|prometheus)/i;
+// Claude Code names MCP tools mcp__<server>__<tool>, Copilot CLI <server>-<tool>; no built-in tool
+// of either agent mentions these backends.
+const OBSERVABILITY_MCP = /(grafana|tempo|loki|prometheus)/i;
 
 const isProtectedRead = (p) => PROTECTED_READ.some((re) => re.test(p));
 
@@ -65,6 +67,22 @@ function bashViolation(command) {
   return false;
 }
 
+// Where incident-5 is spelled out: the patch, the catalog, lab 5's instructor notes and solution.
+const INCIDENT_5 = /^(scenarios\/incident-5(\/|$)|docs\/02-defects-catalog\.md$|labs\/05-ai-mcp\/(INSTRUCTOR|SOLUTION)\.md$)/;
+
+/**
+ * The lab 5 incident is the agent's exercise in every lab, lab 5 included: reading the
+ * patch would replace the investigation the demo is about.
+ * @returns {boolean} true when the tool call peeks at scenarios/incident-5.
+ */
+export function spoilsIncident(payload, projectDir) {
+  const tool = payload.tool_name ?? '';
+  const input = payload.tool_input ?? {};
+  if (['Read', 'Grep', 'Glob'].includes(tool)) return INCIDENT_5.test(toRepoPath(projectDir, input.file_path ?? input.path));
+  if (tool === 'Bash') return pathTokens(String(input.command ?? '')).some((t) => INCIDENT_5.test(t));
+  return false;
+}
+
 /** @returns {boolean} true when the tool call must be denied in coach mode. */
 export function violates(payload, projectDir) {
   const tool = payload.tool_name ?? '';
@@ -76,7 +94,7 @@ export function violates(payload, projectDir) {
     case 'Write':
     case 'MultiEdit':
     case 'NotebookEdit':
-      return PROTECTED_WRITE.test(toRepoPath(projectDir, input.file_path ?? input.notebook_path));
+      return PROTECTED_WRITE.test(toRepoPath(projectDir, input.file_path ?? input.notebook_path ?? input.path));
     case 'Read':
     case 'Grep':
     case 'Glob':
@@ -91,6 +109,9 @@ export function violates(payload, projectDir) {
 export const denyReason = (lab) =>
   `Lab ${lab} is hands-on without AI 🙂 Ask me for a hint or a guiding question instead. ` +
   `Stuck? make solution N=${lab}. The agent unlocks in lab ${AGENT_LAB}.`;
+
+export const spoilerReason =
+  "That's the lab 5 incident itself 🙂 Investigate it with Grafana (logs, traces, metrics) instead.";
 
 export const promptReminder = (lab) =>
   lab < AGENT_LAB

@@ -5,19 +5,142 @@ x-node-service: &node-service
   env_file:
     - path: .env.scenario
       required: false
-  environment: &node-env
-    DATABASE_URL: postgres://lab:lab@postgres:5432/lab
-    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-  depends_on: &node-deps
-    postgres:
-      condition: service_healthy
-    otel-collector:
-      condition: service_started
+  healthcheck:
+    test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${PORT:-3000}/health || exit 1"]
+    interval: 3s
+    timeout: 3s
+    retries: 30
 
 services:
+  # ---------------------------------------------------------------- application
+  gateway:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      ORDERS_URL: http://orders:3000
+      OTEL_SERVICE_NAME: gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      orders:
+        condition: service_healthy
+
+  orders:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: services/orders/Dockerfile
+    environment:
+      DATABASE_URL: postgres://lab:lab@postgres:5432/lab
+      PAYMENTS_URL: http://payments:3000
+      INVENTORY_URL: http://inventory:3000
+      # catalog runs in another region: we reach it through the WAN (Toxiproxy).
+      CATALOG_URL: http://toxiproxy:8667
+      OTEL_SERVICE_NAME: orders
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  inventory:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: services/inventory/Dockerfile
+    environment:
+      DATABASE_URL: postgres://lab:lab@postgres:5432/lab
+      OTEL_SERVICE_NAME: inventory
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  catalog:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: services/catalog/Dockerfile
+    environment:
+      OTEL_SERVICE_NAME: catalog
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+  payments:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: services/payments/Dockerfile
+    environment:
+      PSP_URL: http://toxiproxy:8666
+      OTEL_SERVICE_NAME: payments
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      toxiproxy:
+        condition: service_started
+      fake-psp:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  notifier:
+    <<: *node-service
+    build:
+      context: .
+      dockerfile: services/notifier/Dockerfile
+    environment:
+      ORDERS_URL: http://orders:3000
+      # The mail provider is outside our network too (Toxiproxy).
+      SMTP_HOST: toxiproxy
+      SMTP_PORT: "1025"
+      OTEL_SERVICE_NAME: notifier
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  # Third-party payment provider: pre-instrumented, not part of the exercises.
+  fake-psp:
+    build: services/fake-psp
+    restart: unless-stopped
+    env_file:
+      - path: .env.scenario
+        required: false
+    environment:
+      OTEL_PHP_AUTOLOAD_ENABLED: "true"
+      OTEL_SERVICE_NAME: fake-psp
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/json
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_PROPAGATORS: tracecontext,baggage
+      OTEL_PHP_LOG_DESTINATION: none
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8080/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
   # ---------------------------------------------------------------- data
   postgres:
-    image: postgres:17.11-alpine
+    image: postgres:17.11-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
     command: ["postgres", "-c", "max_connections=20"]
     environment:
       POSTGRES_USER: lab
@@ -31,8 +154,17 @@ services:
       timeout: 3s
       retries: 30
 
+  # Stand-in for the email provider: its UI shows what customers received.
+  mailpit:
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    ports:
+      - "8025:8025"
+
   rabbitmq:
-    image: rabbitmq:4.4.0-management-alpine
+    image: rabbitmq:4.4.0-management-alpine@sha256:4841f6384ef8313c3594cd3f2e9f40c10805f8a61c45f08a9a5d9ddea8199267
+    # On a busy machine the broker occasionally fails its first boot; retry instead of
+    # taking the whole stack down with it.
+    restart: unless-stopped
     ports:
       - "15672:15672"
     healthcheck:
@@ -43,7 +175,7 @@ services:
 
   # ---------------------------------------------------------------- faults
   toxiproxy:
-    image: ghcr.io/shopify/toxiproxy:2.13.0
+    image: ghcr.io/shopify/toxiproxy:2.13.0@sha256:5d3dae09bc185dcc5ff6cf43abf6062a4a720aff0c4306a471e773acdcd107aa
     command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
     ports:
       - "8474:8474"
@@ -52,7 +184,7 @@ services:
 
   # ---------------------------------------------------------------- observability
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.165.0
+    image: otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
     command: ["--config=/etc/otelcol/config.yaml"]
     ports:
       - "4317:4317"
@@ -63,7 +195,7 @@ services:
       - lgtm
 
   lgtm:
-    image: grafana/otel-lgtm:0.40.0
+    image: grafana/otel-lgtm:0.40.0@sha256:72e05804790e6e0d8c0b70a6d5ff1f721ef7b203463374631e99aa3429bd0cf6
     ports:
       - "3000:3000"
     environment:
@@ -72,12 +204,13 @@ services:
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
     volumes:
       - lgtm-data:/data
+      - ./observability/lgtm/tempo-config.yaml:/otel-lgtm/tempo-config.yaml:ro
       - ./observability/grafana/provisioning/datasources/datasources.yaml:/otel-lgtm/grafana/conf/provisioning/datasources/grafana-datasources.yaml:ro
       - ./observability/grafana/provisioning/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards:ro
 
   # ---------------------------------------------------------------- tools (on demand)
   loadgen:
-    image: grafana/k6:2.3.0
+    image: grafana/k6:2.3.0@sha256:2dd4756ec6e14e62778916e1eb850108e4b499304c02df56760fa0bdb0fba0b8
     profiles: ["load"]
     restart: unless-stopped
     command: ["run", "--quiet", "/scripts/baseline.js"]
@@ -87,12 +220,30 @@ services:
       - ./loadgen:/scripts:ro
 
   k6:
-    image: grafana/k6:2.3.0
+    image: grafana/k6:2.3.0@sha256:2dd4756ec6e14e62778916e1eb850108e4b499304c02df56760fa0bdb0fba0b8
     profiles: ["tools"]
     environment:
       GATEWAY_URL: http://gateway:8080
     volumes:
       - ./loadgen:/scripts:ro
+
+  # Lab 5: Grafana's MCP server, started on demand by the agent over stdio (.mcp.json).
+  # Viewer service account token in .env.mcp (make mcp-token); its own traces and logs
+  # go to the Collector, so the agent's tool calls show up in Tempo.
+  mcp-grafana:
+    image: grafana/mcp-grafana:2.2.0@sha256:697336440e34878f8e0b26a69675db8d7e97b4d0daec25ec5441c85ac6c60e81
+    profiles: ["ai"]
+    command: ["-t", "stdio"]
+    stdin_open: true
+    env_file:
+      - path: .env.mcp
+        required: false
+    environment:
+      GRAFANA_URL: http://lgtm:3000
+      # No anonymous usage reports to Grafana Labs from a workshop laptop.
+      GRAFANA_USAGE_STATS: disabled
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
 
   verify:
     build: ./verify

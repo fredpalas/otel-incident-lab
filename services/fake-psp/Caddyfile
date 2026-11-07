@@ -1,0 +1,14 @@
+{
+	admin off
+	auto_https off
+	frankenphp {
+		# Long-tail latency profiles sleep for seconds; enough threads that slow
+		# charges don't queue the fast ones.
+		num_threads 128
+	}
+}
+
+:8080 {
+	root * /app/public
+	php_server
+}

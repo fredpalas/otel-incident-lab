@@ -34,7 +34,7 @@ function decide({ lab, tool, input = {}, author = false }) {
   if (!res.stdout) return 'allow';
   const out = JSON.parse(res.stdout).hookSpecificOutput;
   assert.equal(out.hookEventName, 'PreToolUse');
-  assert.match(out.permissionDecisionReason, /hands-on without AI/);
+  assert.match(out.permissionDecisionReason, /hands-on without AI|lab 5 incident/);
   return out.permissionDecision;
 }
 
@@ -95,9 +95,23 @@ const cases = [
   [2, 'Bash', bash('pnpm install && pnpm test > /tmp/out.txt'), 'allow'],
   [2, 'Bash', bash('curl -s localhost:3000/api/health'), 'allow'],
   [2, 'mcp__ide__getDiagnostics', {}, 'allow'],
+  [2, 'grafana-query_loki_logs', {}, 'deny'], // Copilot CLI's MCP tool naming
+  [5, 'grafana-query_loki_logs', {}, 'allow'],
+  [2, 'Edit', { path: 'services/orders/src/x.ts' }, 'deny'], // Copilot CLI passes path
   // lab 5 unlocks everything; author mode bypasses
   [5, 'Bash', bash("sed -i 's/a/b/' services/catalog/src/pricing.ts"), 'allow'],
   [5, 'mcp__grafana__search_dashboards', {}, 'allow'],
+  // the lab 5 incident stays hidden from the agent, in lab 5 too
+  [5, 'Read', edit('scenarios/incident-5/regression.patch'), 'deny'],
+  [5, 'Bash', bash('cat scenarios/incident-5/regression.patch'), 'deny'],
+  [5, 'Grep', { pattern: 'rate', path: 'scenarios/incident-5' }, 'deny'],
+  [5, 'Bash', bash('git log -p -1'), 'allow'],
+  [5, 'Read', edit('docs/02-defects-catalog.md'), 'deny'],
+  [5, 'Read', edit('labs/05-ai-mcp/INSTRUCTOR.md'), 'deny'],
+  [5, 'Bash', bash('cat labs/05-ai-mcp/SOLUTION.md'), 'deny'],
+  [5, 'Read', edit('labs/05-ai-mcp/README.md'), 'allow'],
+  [5, 'Read', edit('labs/04-follow-the-order/SOLUTION.md'), 'allow'],
+  [5, 'Read', edit('services/orders/src/orders/domain/LoyaltyTier.ts'), 'allow'],
 ];
 
 describe('deny-edits', () => {
@@ -106,6 +120,19 @@ describe('deny-edits', () => {
       assert.equal(decide({ lab, tool, input }), expected);
     });
   }
+
+  test('--copilot answers with a top-level decision and exit code 2', () => {
+    const dir = project(2);
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: dir };
+    delete env.INCIDENT_LAB_AUTHOR;
+    const res = spawnSync('node', [HOOK, '--copilot'], {
+      input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: dir, tool_name: 'Edit', tool_input: { path: join(dir, 'services/x.ts') } }),
+      env,
+      encoding: 'utf8',
+    });
+    assert.equal(res.status, 2);
+    assert.equal(JSON.parse(res.stdout).permissionDecision, 'deny');
+  });
 
   test('INCIDENT_LAB_AUTHOR=1 bypasses the guard', () => {
     assert.equal(decide({ lab: 2, tool: 'Edit', input: edit('services/orders/src/x.ts'), author: true }), 'allow');

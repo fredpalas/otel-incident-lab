@@ -1,4 +1,6 @@
 import type { Check } from './lib/check.ts';
+import { withToxics } from './lib/toxiproxy.ts';
+import { checkouts } from './lib/traffic.ts';
 
 const lab = process.argv[2];
 if (!lab || !/^\d+$/.test(lab)) {
@@ -12,6 +14,14 @@ try {
 } catch (err) {
   console.error(`No verify script for lab ${lab}: ${(err as Error).message}`);
   process.exit(2);
+}
+
+// Right after `make up` the services are cold (on a small CI runner, some are still
+// starting): a couple of throwaway checkouts first, so checks measure the code, not that.
+if (lab !== '0') {
+  await withToxics('psp', [], async () => {
+    for (let round = 0; round < 2; round++) await checkouts('verify-warmup', 5);
+  }).catch(() => undefined);
 }
 
 console.log(`\nVerifying lab ${lab}\n`);

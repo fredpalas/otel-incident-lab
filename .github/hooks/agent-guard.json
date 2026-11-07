@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node scripts/agent-guard/deny-edits.mjs --copilot",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

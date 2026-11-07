@@ -1,0 +1,20 @@
+{
+  // Plan B when a laptop can't run the stack: the same workshop in GitHub Codespaces.
+  "name": "otel-incident-lab",
+  "image": "mcr.microsoft.com/devcontainers/base:noble@sha256:ec556aed93f62aa6d13fe72c5db09da4e29a7c9b87c568dbca0ee5717466926a",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  // The stack needs ~2.5 GB plus the images: the 4-core / 16 GB machine.
+  "hostRequirements": { "cpus": 4, "memory": "16gb", "storage": "32gb" },
+  "forwardPorts": [3000, 8080, 8025, 8474],
+  "portsAttributes": {
+    "3000": { "label": "Grafana", "onAutoForward": "openBrowserOnce" },
+    "8080": { "label": "gateway (checkout API)" },
+    "8025": { "label": "Mailpit (emails)" },
+    "8474": { "label": "Toxiproxy API" }
+  },
+  // The inner Docker daemon starts with the container: wait for it before using it.
+  "postCreateCommand": "until docker info >/dev/null 2>&1; do sleep 1; done; make pull",
+  "postStartCommand": "until docker info >/dev/null 2>&1; do sleep 1; done; make up"
+}

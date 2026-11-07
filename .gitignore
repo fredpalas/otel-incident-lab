@@ -6,6 +6,7 @@ CLAUDE.local.md
 .lab-state
 .env.mcp
 .env.scenario
+.collector-config.cksum
 
 # toolchain / build output
 node_modules/
