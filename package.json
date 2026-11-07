@@ -1,0 +1,22 @@
+{
+  "name": "otel-incident-lab",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter './services/*' build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "test": "pnpm -r --filter './services/*' test",
+    "test:guard": "node --test scripts/agent-guard/test/*.test.mjs",
+    "test:jump": "sh scripts/test/jump.test.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}

@@ -1,0 +1,20 @@
+# authoring mode (author machine only)
+CLAUDE.local.md
+.claude/settings.local.json
+
+# workshop runtime state
+.lab-state
+.env.mcp
+.env.scenario
+
+# toolchain / build output
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+vendor/
+
+# editors
+.idea/
+.vscode/
+.DS_Store

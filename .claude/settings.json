@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-guard/prompt-reminder.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob|Bash|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-guard/deny-edits.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

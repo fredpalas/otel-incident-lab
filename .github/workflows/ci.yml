@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+    branches: [main, solution-path]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Agent guard hooks
+        run: pnpm test:guard
+      - name: Safe jump
+        run: pnpm test:jump
+      - name: Agent pointer files in sync with AGENTS.md
+        run: sh scripts/agent-guard/sync-pointers.sh --check
+
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: make up
+      - run: make verify N=0
+      - name: Memory report (budget < 4 GB)
+        if: always()
+        run: |
+          docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}' | tee mem.txt
+          awk -F'\t' '{split($2,a," "); v=a[1]; if (v ~ /GiB/) {sub(/GiB/,"",v); v*=1024} else {sub(/MiB/,"",v)}; t+=v} END {printf "TOTAL %.0f MiB\n", t}' mem.txt | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # Every lab: verify must FAIL on lab-N-start and PASS on lab-N-solution (docs/04).
+  labs:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lab: [1]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: lab-${{ matrix.lab }}-start must fail verify
+        run: |
+          git checkout -q "lab-${{ matrix.lab }}-start"
+          sh scripts/apply-scenario.sh ${{ matrix.lab }}
+          make up
+          if make verify N=${{ matrix.lab }}; then
+            echo "::error::verify passed on lab-${{ matrix.lab }}-start — the defect is missing"
+            exit 1
+          fi
+      - name: lab-${{ matrix.lab }}-solution must pass verify
+        run: |
+          git checkout -q "lab-${{ matrix.lab }}-solution"
+          sh scripts/apply-scenario.sh ${{ matrix.lab }}
+          make up
+          make verify N=${{ matrix.lab }}

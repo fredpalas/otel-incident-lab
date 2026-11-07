@@ -1,0 +1,25 @@
+{
+  "uid": "checkout",
+  "title": "Checkout",
+  "tags": ["workshop"],
+  "schemaVersion": 41,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "logs",
+      "title": "Error logs (all services)",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service_name=~\".+\"} | severity_text=~\"(?i)error|fatal\""
+        }
+      ],
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
+    }
+  ]
+}

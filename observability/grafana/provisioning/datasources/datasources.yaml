@@ -1,0 +1,62 @@
+# Replaces the otel-lgtm default datasources so the cross-links are ours to evolve.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    url: http://127.0.0.1:9090
+    editable: true
+    jsonData:
+      timeInterval: 15s
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+          urlDisplayLabel: "Trace: $${__value.raw}"
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    url: http://127.0.0.1:3200
+    editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        customQuery: true
+        query: '{$${__tags}} | trace_id = "$${__trace.traceId}"'
+        tags:
+          - key: service.name
+            value: service_name
+      tracesToMetrics:
+        datasourceUid: prometheus
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
+
+  - name: Loki
+    type: loki
+    uid: loki
+    url: http://127.0.0.1:3100
+    isDefault: true
+    editable: true
+    jsonData:
+      derivedFields:
+        # OTLP logs carry trace_id as structured metadata, hence matcherType=label.
+        - name: trace_id
+          matcherType: label
+          matcherRegex: trace_id
+          url: "$${__value.raw}"
+          datasourceUid: tempo
+          urlDisplayLabel: "Trace: $${__value.raw}"
+
+  - name: Pyroscope
+    type: grafana-pyroscope-datasource
+    uid: pyroscope
+    url: http://127.0.0.1:4040
