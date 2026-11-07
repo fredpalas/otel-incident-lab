@@ -4,18 +4,23 @@ COMPOSE := docker compose
 TOOLS := $(COMPOSE) --profile tools
 
 .DEFAULT_GOAL := help
-.PHONY: help pull up down reset doctor load spike lab solution save where verify repro incident-5 check-n
+.PHONY: help pull up watch down reset doctor load spike lab solution save where verify repro incident-5 check-n
 
 help: ## Show this help
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  make %-12s %s\n", $$1, $$2}'
 
 pull: ## Pre-pull and build everything (run at home, before the workshop)
-	$(COMPOSE) --profile tools --profile load pull --ignore-buildable
+	$(COMPOSE) --profile tools --profile load --profile ai pull --ignore-buildable
 	$(COMPOSE) --profile tools --profile load build
 
-up: ## Start the stack
+up: ## Start the stack (rebuilds what changed, restarts the Collector if its config changed)
 	$(COMPOSE) up -d --build --wait
+	@sh scripts/reload-collector.sh
 	@echo "Grafana: http://localhost:3000"
+
+watch: ## Start the stack and rebuild a service each time you save a file (Ctrl+C stops watching)
+	@$(MAKE) --no-print-directory up
+	@$(COMPOSE) watch --no-up || { [ $$? -eq 130 ] && printf "\n👀 Stopped watching; the stack keeps running.\n"; }
 
 down: ## Stop the stack (keeps data)
 	$(COMPOSE) --profile load down
@@ -36,12 +41,12 @@ spike: ## Run a short load spike
 lab: check-n ## Jump to the start of lab N (your work is saved first): make lab N=2
 	@sh scripts/jump.sh lab $(N)
 	@sh scripts/apply-scenario.sh $(N)
-	$(COMPOSE) up -d --build --wait
+	@$(MAKE) --no-print-directory up
 
 solution: check-n ## Jump to the solution of lab N: make solution N=2
 	@sh scripts/jump.sh solution $(N)
 	@sh scripts/apply-scenario.sh $(N)
-	$(COMPOSE) up -d --build --wait
+	@$(MAKE) --no-print-directory up
 
 save: ## Commit your current work on your branch
 	@git add -A && git commit -q --no-verify -m "wip: $$(date +%Y-%m-%dT%H:%M:%S)" && echo "💾 saved on $$(git branch --show-current)" || echo "nothing to save"

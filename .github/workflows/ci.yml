@@ -9,6 +9,28 @@ on:
 jobs:
   static:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11-alpine
+        env:
+          POSTGRES_USER: lab
+          POSTGRES_PASSWORD: lab
+          POSTGRES_DB: lab_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U lab" --health-interval 2s --health-retries 30
+      rabbitmq:
+        image: rabbitmq:4.4.0-management-alpine
+        ports: ["5672:5672"]
+        options: --health-cmd "rabbitmq-diagnostics -q ping" --health-interval 5s --health-retries 30
+      mailpit:
+        image: axllent/mailpit:v1.33.1
+        ports: ["1025:1025", "8025:8025"]
+    env:
+      TEST_DATABASE_URL: postgres://lab:lab@localhost:5432/lab_test
+      TEST_AMQP_URL: amqp://guest:guest@localhost:5672
+      TEST_SMTP_HOST: 127.0.0.1
+      TEST_SMTP_PORT: "1025"
+      TEST_MAILPIT_API: http://localhost:8025
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -24,6 +46,8 @@ jobs:
         run: pnpm test:guard
       - name: Safe jump
         run: pnpm test:jump
+      - name: Every image pinned by digest
+        run: sh scripts/check-digests.sh
       - name: Agent pointer files in sync with AGENTS.md
         run: sh scripts/agent-guard/sync-pointers.sh --check
 
@@ -31,6 +55,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # Loki stops ingesting when its disk is > 90 % full; the hosted runner is close
+      # to that after building the images.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
       - run: make up
       - run: make verify N=0
       - name: Memory report (budget < 4 GB)
@@ -50,6 +80,15 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      # Loki stops ingesting when its disk is > 90 % full; the hosted runner is close
+      # to that after building the images.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - name: Debug logs for otel-lgtm internals (untracked override survives tag checkouts)
+        run: |
+          printf 'services:\n  lgtm:\n    environment:\n      ENABLE_LOGS_OTELCOL: "true"\n      ENABLE_LOGS_LOKI: "true"\n' > docker-compose.override.yml
       - name: Checkpoint tags exist
         id: tags
         run: |
@@ -59,6 +98,11 @@ jobs:
           else
             echo "::warning::lab-${{ matrix.lab }} tags not created yet — skipping"
           fi
+      # A participant runs verify from lab-N-start: a fix to verify that only lands in
+      # lab-N-solution would make correct solutions fail.
+      - name: verify is the same at lab-${{ matrix.lab }}-start and -solution
+        if: steps.tags.outputs.present == 'true'
+        run: git diff --exit-code --stat "lab-${{ matrix.lab }}-start" "lab-${{ matrix.lab }}-solution" -- verify
       - name: lab-${{ matrix.lab }}-start must fail verify
         if: steps.tags.outputs.present == 'true'
         run: |
@@ -76,3 +120,13 @@ jobs:
           sh scripts/apply-scenario.sh ${{ matrix.lab }}
           make up
           make verify N=${{ matrix.lab }}
+      - name: Diagnostics
+        if: failure()
+        run: |
+          df -h /
+          docker compose ps
+          for s in orders payments gateway otel-collector rabbitmq; do echo "::group::$s"; docker compose logs --tail 40 "$s"; echo "::endgroup::"; done
+          echo "Loki services:"; docker compose exec -T lgtm curl -s http://127.0.0.1:3100/loki/api/v1/label/service_name/values; echo
+          echo "::group::otel-lgtm internals (no query noise)"
+          docker compose logs --no-log-prefix lgtm | grep -vE 'component=(querier|frontend)|executing query|start_delta|table_manager|query_hash' | grep -iE 'level=(warn|error)|throttl|shutting|refused|failed' | head -60
+          echo "::endgroup::"

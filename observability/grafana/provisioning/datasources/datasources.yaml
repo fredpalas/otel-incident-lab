@@ -56,6 +56,20 @@ datasources:
           datasourceUid: tempo
           urlDisplayLabel: "Trace: $${__value.raw}"
 
+  # Business data: what the orders table says, independent of any telemetry.
+  - name: Postgres
+    type: grafana-postgresql-datasource
+    uid: postgres
+    url: postgres:5432
+    user: lab
+    editable: true
+    jsonData:
+      database: lab
+      sslmode: disable
+      postgresVersion: 1700
+    secureJsonData:
+      password: lab
+
   - name: Pyroscope
     type: grafana-pyroscope-datasource
     uid: pyroscope

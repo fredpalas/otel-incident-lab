@@ -8,7 +8,7 @@ const byProxy = existsSync(file)
   ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, Toxic[]>)
   : {};
 
-for (const proxy of ['psp']) {
+for (const proxy of ['psp', 'catalog', 'smtp']) {
   const toxics = byProxy[proxy] ?? [];
   await replaceToxics(proxy, toxics);
   console.log(`🧪 toxiproxy ${proxy}: ${toxics.length ? toxics.map((t) => t.name).join(', ') : 'no toxics'}`);

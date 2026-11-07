@@ -7,8 +7,8 @@ Each phase: plan → approval → build (verify first) → demo to Adrián → n
 
 | Phase | Scope | Done when | Status |
 |---|---|---|---|
-| **0 — Skeleton** | AI coach-mode guardrails (docs/06), pnpm workspace, compose (Postgres, RabbitMQ, Toxiproxy, Collector, otel-lgtm, k6), Makefile (`pull up down reset doctor load`), Grafana provisioning stub, `verify/` harness, CI skeleton | `make up` healthy on mac arm64 + linux amd64, < 4 GB RAM | ◐ linux amd64 done (≈ 0.9 GB idle); mac arm64 pending |
-| **1 — Lab 1 end-to-end** | gateway, orders, payments, fake-psp (minimal), D1, D2 toxic, `lab-1-start` / `lab-1-solution`, `verify-1`, `labs/01-*` | CI matrix: start FAIL / solution PASS | ☐ |
+| **0 — Skeleton** | AI coach-mode guardrails (docs/06), pnpm workspace, compose (Postgres, RabbitMQ, Toxiproxy, Collector, otel-lgtm, k6), Makefile (`pull up down reset doctor load`), Grafana provisioning stub, `verify/` harness, CI skeleton | `make up` healthy on mac arm64 + linux amd64, < 4 GB RAM | ✅ linux amd64 (≈ 0.9 GB infra idle); mac arm64 pending (phase 6) |
+| **1 — Lab 1 end-to-end** | gateway, orders, payments, fake-psp (minimal), D1, D2 toxic, `lab-1-start` / `lab-1-solution`, `verify-1`, `labs/01-*` | CI matrix: start FAIL / solution PASS | ✅ local + CI; ≈ 1.34 GB with all services + baseline load |
 | **2 — Lab 2** | instrumentation.ts per service, D3, log↔trace links, `verify-2` | CI matrix green | ☐ |
 | **3 — Lab 3** | inventory + catalog, D10 profile, D4, D5, D6, spanmetrics/servicegraph, Checkout dashboard, `verify-3` | CI matrix green | ☐ |
 | **4 — Lab 4** | notifier + RabbitMQ, D7, D8, Baggage, correlation_id, span links, `code.*` attrs, `verify-4` | CI matrix green | ☐ |

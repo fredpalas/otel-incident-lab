@@ -1,3 +1,15 @@
 packages:
   - services/*
   - verify
+
+# Transitive install scripts we never need (file watchers, protobufjs version check).
+allowBuilds:
+  "@parcel/watcher": false
+  protobufjs: false
+
+# One OTel API in the main thread: the SDK and every instrumentation must share a single
+# global tracer/context (a second copy silently yields a no-op tracer). sdk-node 0.30x
+# needs >=1.10; pino-opentelemetry-transport still pulls core 2.x (peer <1.10) but runs in
+# its own worker thread, where the newer API works fine.
+overrides:
+  "@opentelemetry/api": 1.10.0

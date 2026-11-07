@@ -4,5 +4,17 @@
     "listen": "0.0.0.0:8666",
     "upstream": "fake-psp:8080",
     "enabled": true
+  },
+  {
+    "name": "catalog",
+    "listen": "0.0.0.0:8667",
+    "upstream": "catalog:3000",
+    "enabled": true
+  },
+  {
+    "name": "smtp",
+    "listen": "0.0.0.0:1025",
+    "upstream": "mailpit:1025",
+    "enabled": true
   }
 ]

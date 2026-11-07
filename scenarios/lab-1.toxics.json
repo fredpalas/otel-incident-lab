@@ -1,0 +1,36 @@
+{
+  "psp": [
+    {
+      "name": "psp_connection_reset",
+      "type": "reset_peer",
+      "stream": "downstream",
+      "toxicity": 0.05,
+      "attributes": {
+        "timeout": 0
+      }
+    }
+  ],
+  "catalog": [
+    {
+      "name": "catalog_wan_latency",
+      "type": "latency",
+      "stream": "downstream",
+      "toxicity": 1,
+      "attributes": {
+        "latency": 80,
+        "jitter": 10
+      }
+    }
+  ],
+  "smtp": [
+    {
+      "name": "smtp_connection_reset",
+      "type": "reset_peer",
+      "stream": "downstream",
+      "toxicity": 0.1,
+      "attributes": {
+        "timeout": 0
+      }
+    }
+  ]
+}

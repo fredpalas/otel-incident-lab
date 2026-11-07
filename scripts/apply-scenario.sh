@@ -10,4 +10,4 @@ else
 fi
 
 docker compose up -d --wait toxiproxy >/dev/null
-docker compose --profile tools run --rm -q --entrypoint node verify apply-toxics.ts "$n"
+docker compose --profile tools run --rm --build -q --entrypoint node verify apply-toxics.ts "$n"

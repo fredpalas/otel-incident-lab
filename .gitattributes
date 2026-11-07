@@ -1,0 +1,7 @@
+# Shell scripts, the Makefile, YAML and the Caddyfile must keep LF line endings on every
+# OS: with core.autocrlf=true on Windows, a CRLF checkout breaks them inside Linux
+# containers and WSL2.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

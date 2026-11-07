@@ -30,6 +30,8 @@ export async function replaceToxics(proxy: string, toxics: Toxic[]): Promise<voi
   }
 }
 
+const pendingRestores = new Set<() => Promise<void>>();
+
 /**
  * Runs `fn` with `toxics` replacing the proxy's current ones, then restores the
  * participant's scenario. Verify needs deterministic failures; the scenario's
@@ -37,10 +39,19 @@ export async function replaceToxics(proxy: string, toxics: Toxic[]): Promise<voi
  */
 export async function withToxics<T>(proxy: string, toxics: Toxic[], fn: () => Promise<T>): Promise<T> {
   const previous = await listToxics(proxy);
+  const restore = (): Promise<void> => replaceToxics(proxy, previous);
+  pendingRestores.add(restore);
   await replaceToxics(proxy, toxics);
   try {
     return await fn();
   } finally {
-    await replaceToxics(proxy, previous);
+    pendingRestores.delete(restore);
+    await restore();
   }
+}
+
+/** Puts back every scenario a `withToxics` still holds: an interrupted verify must not leave the PSP failing 100 %. */
+export async function restoreScenario(): Promise<void> {
+  for (const restore of [...pendingRestores].reverse()) await restore().catch(() => undefined);
+  pendingRestores.clear();
 }

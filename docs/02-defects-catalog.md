@@ -11,16 +11,22 @@ Legend — **Kind**: `code` (fix in code), `config` (fix a parameter), `infra`
 
 ## D1 — Swallowed exception · Lab 1 · code
 
-- **Where**: `orders`, checkout use case. The call to `payments` is wrapped in
-  `try { … } catch {}` (or a floating promise without `await`).
+- **Where**: `orders`, `CheckoutService.placeOrder`. The call to `payments` is wrapped
+  in `try { … } catch {}` with a comment blaming a "payment reconciliation" job that
+  doesn't exist.
 - **Symptom**: `POST /checkout` returns `201`. Order stays `PENDING` forever.
   Customer never gets tickets. No error anywhere.
 - **Signal**: none — that is the lesson. After adding structured logs: Loki
-  `{service_name="orders"} | json | level="error"`.
+  `{service_name="orders"} | severity_text=~"(?i)error"` (OTLP logs carry the level as
+  `severity_text` structured metadata, not in a JSON body).
 - **Fix**: propagate the error, mark order `FAILED`, return `502`, log with context
   (`order_id`, error).
-- **Verify-1 (part)**: after a k6 burst, `count(orders WHERE status='PENDING' AND
-  created_at < now()-30s) == 0` AND Loki has ≥ 1 `level=error` line from `orders`.
+- **Verify-1**: with PSP connections reset at 100 % for its own run (ADR-0007), 5
+  checkouts tagged `customer_id = verify-<run>-fail`: none stays `PENDING`, none gets a
+  2xx, and Loki has an error line from `orders` whose `order_id` (or `orderId`) is one
+  of them. Plus a happy-path check (3 checkouts, PSP healthy → 201 + `PAID`).
+- **Lab-1 note**: D2's toxic only bites per request because fake-psp answers with
+  `Connection: close`; with keep-alive the 5 % collapses to ~0 %.
 
 ## D2 — Generic error re-logged by every hop · Lab 1 → 2 · infra + code
 
