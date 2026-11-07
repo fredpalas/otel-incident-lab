@@ -23,6 +23,7 @@ services:
     environment:
       PORT: "8080"
       ORDERS_URL: http://orders:3000
+      ORDERS_TIMEOUT_MS: "2000"
       OTEL_SERVICE_NAME: gateway
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
@@ -37,6 +38,7 @@ services:
     environment:
       DATABASE_URL: postgres://lab:lab@postgres:5432/lab
       PAYMENTS_URL: http://payments:3000
+      PAYMENTS_TIMEOUT_MS: "1000"
       INVENTORY_URL: http://inventory:3000
       # catalog runs in another region: we reach it through the WAN (Toxiproxy).
       CATALOG_URL: http://toxiproxy:8667
@@ -85,6 +87,8 @@ services:
       dockerfile: services/payments/Dockerfile
     environment:
       PSP_URL: http://toxiproxy:8666
+      PSP_TIMEOUT_MS: "300"
+      PSP_RETRIES: "3"
       OTEL_SERVICE_NAME: payments
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
