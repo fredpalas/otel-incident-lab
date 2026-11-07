@@ -40,18 +40,21 @@ needed) so `make pull` can cache them: the venue network is unreliable.
 
 ## Lab 2 — Traces (30')
 
-**Ticket**: continues lab 1 + "and sometimes it just times out".
+**Ticket**: continues lab 1 — "some customers were charged twice; others were charged
+although the site said the payment failed; and sometimes checkout just fails".
 
 1. Add `src/instrumentation.ts` (NodeSDK + auto-instrumentations) to all TS services,
    load with `node --import`. Add traces pipeline to the Collector.
 2. Add `@opentelemetry/instrumentation-pino` → logs now carry `trace_id`.
 3. In Grafana: from an error log, jump to its trace. Find the deepest ERROR span
    (D2 origin: reset on payments → fake-psp).
-4. Notice repeated sibling spans to fake-psp; open service graph (D3). Fix timeouts,
-   retries, backoff, idempotency key.
+4. Notice repeated sibling spans to fake-psp and PSP spans outliving them (D3). Fix
+   timeouts (in `docker-compose.yml`), the retry policy (connection errors only,
+   jittered backoff) and add an `Idempotency-Key`.
 5. Fix the duplicated error logging (only the origin logs the full error).
 
-**Verify-2**: D2 + D3 checks.
+**Collector**: + `traces` pipeline (`make up` restarts the Collector when its config
+changes — compose alone doesn't notice bind-mount edits). **Verify-2**: D2 + D3 checks.
 
 ## Lab 3 — Latency (35')
 
