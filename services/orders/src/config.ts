@@ -15,7 +15,7 @@ export const config = {
     return process.env.PAYMENTS_URL ?? 'http://payments:3000';
   },
   get paymentsTimeoutMs(): number {
-    return intFromEnv('PAYMENTS_TIMEOUT_MS', 1000);
+    return intFromEnv('PAYMENTS_TIMEOUT_MS', 1800);
   },
   get inventoryUrl(): string {
     return process.env.INVENTORY_URL ?? 'http://inventory:3000';

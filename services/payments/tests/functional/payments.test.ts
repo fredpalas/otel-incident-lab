@@ -7,6 +7,9 @@ import { EXCHANGE } from '../../src/shared/infrastructure/messaging/RabbitMq';
 import { testAmqpUrl } from './messaging';
 import { StubServer } from './StubServer';
 
+const CAPTURED = { status: 201, body: { id: 'ch_1', status: 'captured' } };
+const PAYMENT = { orderId: 'ord_1', customerId: 'cus_1', amountCents: 9000, currency: 'EUR' };
+
 describe('payments HTTP API', () => {
   let app: INestApplication<App>;
   let psp: StubServer;
@@ -15,11 +18,7 @@ describe('payments HTTP API', () => {
   let failures: string;
 
   beforeAll(async () => {
-    psp = new StubServer((req) =>
-      (req.body as { reference?: string }).reference === 'ord_rejected'
-        ? { status: 422, body: { error: 'invalid_request' } }
-        : { status: 201, body: { id: 'ch_1', status: 'captured' } },
-    );
+    psp = new StubServer(() => CAPTURED);
     process.env.PSP_URL = await psp.start();
     process.env.AMQP_URL = testAmqpUrl();
     connection = await connect(testAmqpUrl());
@@ -31,6 +30,11 @@ describe('payments HTTP API', () => {
     await app.init();
   });
 
+  beforeEach(() => {
+    psp.requests.length = 0;
+    psp.replyWith(() => CAPTURED);
+  });
+
   afterAll(async () => {
     await connection.close();
     await app.close();
@@ -38,20 +42,21 @@ describe('payments HTTP API', () => {
   });
 
   test('POST /payments charges the PSP', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/payments')
-      .send({ orderId: 'ord_1', customerId: 'cus_1', amountCents: 9000, currency: 'EUR' })
-      .expect(201);
+    const res = await request(app.getHttpServer()).post('/payments').send(PAYMENT).expect(201);
 
     expect(res.body).toEqual({ paymentId: 'ch_1', orderId: 'ord_1', status: 'captured' });
     expect(psp.requests.at(-1)).toMatchObject({
       method: 'POST',
       url: '/charges',
+      headers: expect.objectContaining({ 'idempotency-key': 'ord_1' }),
       body: { amount: 9000, currency: 'EUR', reference: 'ord_1', customer_id: 'cus_1' },
     });
   });
 
   test('a failed charge is announced as payment.failed', async () => {
+    await channel.purgeQueue(failures);
+    psp.replyWith(() => ({ status: 422, body: { error: 'invalid_request' } }));
+
     await request(app.getHttpServer())
       .post('/payments')
       .send({ orderId: 'ord_rejected', customerId: 'cus_1', amountCents: 9000, currency: 'EUR' })
@@ -64,6 +69,35 @@ describe('payments HTTP API', () => {
       events.push(JSON.parse(m.content.toString()));
     }
     expect(events).toContainEqual(expect.objectContaining({ eventName: 'payment.failed', data: expect.objectContaining({ orderId: 'ord_rejected' }) }));
+  });
+
+  test('a connection reset is retried once, with the same Idempotency-Key', async () => {
+    psp.replyWith(() => (psp.requests.length === 1 ? 'reset' : CAPTURED));
+
+    await request(app.getHttpServer()).post('/payments').send(PAYMENT).expect(201);
+
+    expect(psp.requests).toHaveLength(2);
+    expect(psp.requests.map((r) => r.headers['idempotency-key'])).toEqual(['ord_1', 'ord_1']);
+  });
+
+  test('a PSP that keeps resetting fails after one retry', async () => {
+    psp.replyWith(() => 'reset');
+
+    await request(app.getHttpServer()).post('/payments').send(PAYMENT).expect(502);
+
+    expect(psp.requests).toHaveLength(2);
+  });
+
+  test('a timed-out charge is not retried', async () => {
+    process.env.PSP_TIMEOUT_MS = '100';
+    psp.replyWith(() => ({ ...CAPTURED, delayMs: 300 }));
+    try {
+      await request(app.getHttpServer()).post('/payments').send(PAYMENT).expect(502);
+    } finally {
+      delete process.env.PSP_TIMEOUT_MS;
+    }
+
+    expect(psp.requests).toHaveLength(1);
   });
 
   test.each([
