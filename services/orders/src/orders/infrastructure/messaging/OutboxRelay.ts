@@ -2,6 +2,7 @@ import { Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } f
 import { Pool } from 'pg';
 import { config } from '../../../config';
 import type { EventEnvelope } from '../../../shared/infrastructure/messaging/EventEnvelope';
+import { logger } from '../../../shared/infrastructure/logger';
 import { EXCHANGE, RabbitMq } from '../../../shared/infrastructure/messaging/RabbitMq';
 
 interface OutboxRow {
@@ -62,8 +63,9 @@ export class OutboxRelay implements OnApplicationBootstrap, OnApplicationShutdow
     this.running = true;
     try {
       await this.publishPending();
-    } catch {
+    } catch (error) {
       // The rows stay pending and the next tick tries again.
+      logger.error({ err: error }, 'outbox relay failed');
     } finally {
       this.running = false;
     }

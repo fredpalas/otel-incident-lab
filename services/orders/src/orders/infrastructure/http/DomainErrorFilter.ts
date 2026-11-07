@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { InvalidArgumentError } from '../../../shared/domain/InvalidArgumentError';
 import { OrderNotFoundError } from '../../domain/OrderNotFoundError';
 import { OrderStateError } from '../../domain/OrderStateError';
+import { PaymentFailedError } from '../../domain/PaymentFailedError';
 import { PaymentsUnavailableError } from '../payments/PaymentsUnavailableError';
 import { UpstreamError } from '../upstream/UpstreamError';
 
@@ -19,6 +20,7 @@ export class DomainErrorFilter implements ExceptionFilter {
     if (error instanceof InvalidArgumentError) return [400, { error: error.message }];
     if (error instanceof OrderNotFoundError) return [404, { error: error.message }];
     if (error instanceof OrderStateError) return [409, { error: error.message }];
+    if (error instanceof PaymentFailedError) return [502, { error: 'payment failed', orderId: error.orderId }];
     if (error instanceof UpstreamError && error.isClientError()) return [error.status ?? 400, { error: error.message }];
     if (error instanceof UpstreamError) return [502, { error: 'upstream error' }];
     if (error instanceof PaymentsUnavailableError) return [502, { error: 'upstream error' }];
