@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use FakePsp\Charge;
+use FakePsp\IdempotencyStore;
 use FakePsp\LatencyProfile;
 use OpenTelemetry\API\Baggage\Baggage;
 use OpenTelemetry\API\Globals;
@@ -23,6 +24,10 @@ function respond(int $status, array $body): void
         frankenphp_finish_request();
     }
 }
+
+// Like any real PSP: once a charge request is in, it is processed even if the
+// merchant stops waiting for the answer.
+ignore_user_abort(true);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
@@ -60,14 +65,24 @@ try {
     $payload = json_decode((string) file_get_contents('php://input'), true);
     $charge = Charge::fromPayload(is_array($payload) ? $payload : []);
 
-    $span->setAttribute('psp.charge.id', $charge->id);
+    $span->setAttribute('psp.charge.reference', $charge->reference);
     $span->setAttribute('psp.charge.amount', $charge->amount);
     $span->setAttribute('psp.charge.currency', $charge->currency);
     $span->setAttribute('customer.email', $charge->customerEmail());
     $span->setAttribute('card.last4', $charge->cardLast4());
-    $span->setAttribute('http.response.status_code', 201);
 
-    respond(201, $charge->toArray());
+    $idempotencyKey = trim((string) ($_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? ''));
+    $replayed = false;
+    $result = $charge->toArray();
+    if ($idempotencyKey !== '') {
+        $span->setAttribute('psp.idempotency_key', $idempotencyKey);
+        [$result, $replayed] = (new IdempotencyStore())->remember($idempotencyKey, fn (): array => $charge->toArray());
+    }
+    $span->setAttribute('psp.idempotent_replay', $replayed);
+    $span->setAttribute('psp.charge.id', (string) $result['id']);
+    $span->setAttribute('http.response.status_code', $replayed ? 200 : 201);
+
+    respond($replayed ? 200 : 201, $result);
 } catch (\InvalidArgumentException $e) {
     $span->setAttribute('http.response.status_code', 422);
     $span->setStatus(StatusCode::STATUS_ERROR, $e->getMessage());
