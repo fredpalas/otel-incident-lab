@@ -6,6 +6,7 @@ import { EXCHANGE, RabbitMq } from '../../../shared/infrastructure/messaging/Rab
 import { NotificationService } from '../../application/NotificationService';
 import type { OrderPaid } from '../../application/OrderPaid';
 import { DeliveryAttempt } from '../../domain/DeliveryAttempt';
+import { logger } from '../../../shared/infrastructure/logger';
 
 const QUEUE = 'notifier.order-paid';
 // Failed deliveries wait here and then go back to QUEUE (dead-lettering after the TTL).
@@ -35,15 +36,21 @@ export class OrderPaidConsumer implements OnApplicationBootstrap {
   private async handle(message: ConsumeMessage): Promise<void> {
     const channel = await this.rabbit.channel();
     const attempt = DeliveryAttempt.of(Number(message.properties.headers?.['x-attempt'] ?? 1));
+    let orderId: string | undefined;
     try {
       const event = JSON.parse(message.content.toString()) as EventEnvelope<OrderPaid>;
+      orderId = event.data.orderId;
       await this.notifications.notifyOrderPaid(event.data);
-    } catch {
+      logger.info({ order_id: orderId, attempt: attempt.number }, 'customer notified');
+    } catch (error) {
       if (attempt.canRetry()) {
+        logger.warn({ order_id: orderId, attempt: attempt.number, err: error }, 'notification failed, retrying later');
         channel.sendToQueue(RETRY_QUEUE, message.content, {
           ...message.properties,
           headers: { ...message.properties.headers, 'x-attempt': attempt.next().number },
         });
+      } else {
+        logger.error({ order_id: orderId, attempt: attempt.number, err: error }, 'notification failed, giving up');
       }
     }
     channel.ack(message);

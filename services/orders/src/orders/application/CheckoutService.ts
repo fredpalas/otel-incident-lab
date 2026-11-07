@@ -7,10 +7,12 @@ import type { OrderDto } from '../domain/OrderDto';
 import { OrderId } from '../domain/OrderId';
 import { OrderNotFoundError } from '../domain/OrderNotFoundError';
 import { OrderRepository } from '../domain/OrderRepository';
+import { PaymentFailedError } from '../domain/PaymentFailedError';
 import { PaymentGateway } from '../domain/PaymentGateway';
 import { Pricing } from '../domain/Pricing';
 import { SeatReservations } from '../domain/SeatReservations';
 import { TicketQuantity } from '../domain/TicketQuantity';
+import { Logger } from '../../shared/application/Logger';
 import type { PlaceOrderCommand } from './PlaceOrderCommand';
 
 @Injectable()
@@ -21,6 +23,7 @@ export class CheckoutService {
     private readonly pricing: Pricing,
     private readonly seats: SeatReservations,
     private readonly customers: Customers,
+    private readonly logger: Logger,
   ) {}
 
   async placeOrder(command: PlaceOrderCommand): Promise<OrderDto> {
@@ -38,12 +41,15 @@ export class CheckoutService {
 
     try {
       await this.payments.charge({ orderId: order.id, customerId: order.customerId, amount: order.total });
-      order.markPaid();
+    } catch (error) {
+      order.markFailed();
       await this.orders.save(order);
-    } catch {
-      // Charges the PSP couldn't confirm are settled later by payment reconciliation.
+      this.logger.error('payment failed, order marked as FAILED', { order_id: order.id.value, err: error });
+      throw new PaymentFailedError(order.id.value, { cause: error });
     }
 
+    order.markPaid();
+    await this.orders.save(order);
     return order.toDto();
   }
 

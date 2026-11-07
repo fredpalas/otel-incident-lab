@@ -1,5 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException } from '@nestjs/common';
 import type { Response } from 'express';
+import { logger } from '../../../shared/infrastructure/logger';
 import { InvalidArgumentError } from '../../../shared/domain/InvalidArgumentError';
 import { UpstreamError } from '../orders/UpstreamError';
 
@@ -8,6 +9,7 @@ export class DomainErrorFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
     const [status, body] = this.map(error);
+    if (status >= 500) logger.error({ err: error, status }, 'checkout failed: upstream error');
     response.status(status).json(body);
   }
 

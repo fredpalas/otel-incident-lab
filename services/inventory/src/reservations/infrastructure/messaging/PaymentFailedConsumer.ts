@@ -2,6 +2,7 @@ import { Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import type { EventEnvelope } from '../../../shared/infrastructure/messaging/EventEnvelope';
 import { EXCHANGE, RabbitMq } from '../../../shared/infrastructure/messaging/RabbitMq';
 import { ReservationService } from '../../application/ReservationService';
+import { logger } from '../../../shared/infrastructure/logger';
 
 const QUEUE = 'inventory.payment-failed';
 
@@ -23,8 +24,10 @@ export class PaymentFailedConsumer implements OnApplicationBootstrap {
       try {
         const event = JSON.parse(message.content.toString()) as EventEnvelope<{ orderId: string }>;
         await this.reservations.release(event.data.orderId);
+        logger.info({ order_id: event.data.orderId }, 'seats released after failed payment');
         channel.ack(message);
-      } catch {
+      } catch (error) {
+        logger.error({ err: error }, 'could not release seats after failed payment');
         channel.nack(message, false, false);
       }
     });

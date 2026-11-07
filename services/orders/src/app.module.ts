@@ -16,6 +16,8 @@ import { HttpPaymentGateway } from './orders/infrastructure/payments/HttpPayment
 import { HttpSeatReservations } from './orders/infrastructure/inventory/HttpSeatReservations';
 import { OutboxRelay } from './orders/infrastructure/messaging/OutboxRelay';
 import { PgOrderRepository } from './orders/infrastructure/persistence/PgOrderRepository';
+import { Logger } from './shared/application/Logger';
+import { PinoLogger } from './shared/infrastructure/PinoLogger';
 
 @Module({
   controllers: [OrdersController, HealthController],
@@ -29,6 +31,7 @@ import { PgOrderRepository } from './orders/infrastructure/persistence/PgOrderRe
     { provide: SeatReservations, useClass: HttpSeatReservations },
     { provide: Pricing, useClass: HttpPricing },
     { provide: Customers, useClass: HttpCustomers },
+    { provide: Logger, useClass: PinoLogger },
   ],
 })
 export class AppModule implements OnApplicationShutdown {
