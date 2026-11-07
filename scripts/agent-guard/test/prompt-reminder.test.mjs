@@ -12,8 +12,8 @@ function remind(lab, { author = false } = {}) {
   try {
     if (lab !== undefined) writeFileSync(join(dir, '.lab-state'), `lab=${lab}\n`);
     const env = { ...process.env, CLAUDE_PROJECT_DIR: dir };
-    delete env.OTEL_LAB_AUTHOR;
-    if (author) env.OTEL_LAB_AUTHOR = '1';
+    delete env.INCIDENT_LAB_AUTHOR;
+    if (author) env.INCIDENT_LAB_AUTHOR = '1';
     const res = spawnSync('node', [HOOK], {
       input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', cwd: dir, prompt: 'fix lab 2' }),
       env,

@@ -5,7 +5,7 @@ import { isAbsolute, join, relative } from 'node:path';
 export const AGENT_LAB = 5;
 
 export function isAuthor(env = process.env) {
-  return env.OTEL_LAB_AUTHOR === '1';
+  return env.INCIDENT_LAB_AUTHOR === '1';
 }
 
 export function readLab(projectDir) {

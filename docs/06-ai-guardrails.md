@@ -35,8 +35,11 @@ from AGENTS.md by `scripts/agent-guard/sync-pointers.sh`, checked in CI).
 Scripts in `scripts/agent-guard/`, POSIX sh + `jq`-free if possible (use Node if
 parsing JSON is needed — Node is already required).
 
-**Bypass:** if `OTEL_LAB_AUTHOR=1` → exit 0 immediately, no output (authoring
+**Bypass:** if `INCIDENT_LAB_AUTHOR=1` → exit 0 immediately, no output (authoring
 mode, set in the git-ignored `.claude/settings.local.json`).
+The name must **not** start with `OTEL_`: Claude Code strips `OTEL_*` variables from
+the environment of hook processes (they configure its own telemetry), so an
+`OTEL_`-prefixed bypass never reaches the hook.
 
 ### `UserPromptSubmit` → `prompt-reminder`
 
@@ -88,7 +91,7 @@ Table-driven: feed hook JSON payloads on stdin, assert decision. Cases at minimu
 | 2 | mcp__grafana__query_loki_logs | — | deny |
 | 5 | Edit | `services/catalog/src/pricing.ts` | allow |
 | missing | Edit | `services/orders/src/x.ts` | deny |
-| 2 + `OTEL_LAB_AUTHOR=1` | Edit | `services/orders/src/x.ts` | allow |
+| 2 + `INCIDENT_LAB_AUTHOR=1` | Edit | `services/orders/src/x.ts` | allow |
 
 Run in CI.
 

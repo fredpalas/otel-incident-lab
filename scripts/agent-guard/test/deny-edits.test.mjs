@@ -23,8 +23,8 @@ function decide({ lab, tool, input = {}, author = false }) {
     if (toolInput[key]) toolInput[key] = join(dir, toolInput[key]); // Claude Code sends absolute paths
   }
   const env = { ...process.env, CLAUDE_PROJECT_DIR: dir };
-  delete env.OTEL_LAB_AUTHOR;
-  if (author) env.OTEL_LAB_AUTHOR = '1';
+  delete env.INCIDENT_LAB_AUTHOR;
+  if (author) env.INCIDENT_LAB_AUTHOR = '1';
   const res = spawnSync('node', [HOOK], {
     input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: dir, tool_name: tool, tool_input: toolInput }),
     env,
@@ -107,7 +107,7 @@ describe('deny-edits', () => {
     });
   }
 
-  test('OTEL_LAB_AUTHOR=1 bypasses the guard', () => {
+  test('INCIDENT_LAB_AUTHOR=1 bypasses the guard', () => {
     assert.equal(decide({ lab: 2, tool: 'Edit', input: edit('services/orders/src/x.ts'), author: true }), 'allow');
   });
 });

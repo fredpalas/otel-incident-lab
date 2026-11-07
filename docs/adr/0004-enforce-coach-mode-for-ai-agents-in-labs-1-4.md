@@ -39,7 +39,7 @@ edits/peeks before lab 5, `.lab-state` as source of truth, honest README copy.
 the transition to lab 5 explicit. We accept it is an honor system.
 
 Authoring is separated: builder context lives in `docs/authoring/` and is loaded via
-the git-ignored `CLAUDE.local.md`; `OTEL_LAB_AUTHOR=1` in the git-ignored
+the git-ignored `CLAUDE.local.md`; `INCIDENT_LAB_AUTHOR=1` in the git-ignored
 `.claude/settings.local.json` bypasses the hooks.
 
 ## Operational Consequences
