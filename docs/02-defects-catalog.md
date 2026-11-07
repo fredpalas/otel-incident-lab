@@ -38,22 +38,36 @@ Legend — **Kind**: `code` (fix in code), `config` (fix a parameter), `infra`
 - **Fix**: no code fix for the reset itself (infra). Code fix: only the originating
   service logs the full error; upstream hops log a short line referencing it
   (avoid N× duplicated stack traces). Mitigation with retries is D3.
-- **Verify-2 (part)**: error log lines from `gateway`/`orders`/`payments` carry
-  `trace_id` (≥ 95 %), and Tempo returns traces for `{ status = error }`.
+- **Verify-2 (part)**: with PSP connections reset at 100 % for 3 checkouts sent with
+  verify's own `traceparent` (ADR-0008): the deepest error span of each trace is a
+  `payments` client span; each of gateway/orders/payments has an error log line carrying
+  one of those `trace_id`s; only `payments` lines carry `err_stack`.
 
-## D3 — Retry amplification / timeout mismatch · Lab 2 · config
+## D3 — Retries without idempotency / timeout budget mismatch · Lab 2 · config + code
 
-- **Where**: `payments` HTTP client: `PSP_TIMEOUT_MS=300`, `PSP_RETRIES=3`, no
-  backoff, retries on non-idempotent calls without idempotency key. `orders` →
-  `payments` timeout 1000 ms; gateway timeout 2000 ms.
-- **Symptom**: intermittent `504` at the gateway; PSP load is ~3–4× checkout rate.
-- **Signal**: trace waterfall with **repeated sibling spans** to fake-psp; service
-  graph shows request-rate ratio payments→psp vs orders→payments ≈ 3–4.
-- **Fix**: timeout budget consistent with the chain (deadline shorter as you go
-  deeper is wrong — inner timeout must be < outer), max 1 retry with jittered backoff,
-  `Idempotency-Key` header, retry only on connect/reset errors.
-- **Verify-2 (part)**: over a 60 s k6 run, `psp_calls / checkouts ≤ 1.3` and
-  gateway 504 rate < 1 %.
+- **Where**: config in `docker-compose.yml` — `payments` `PSP_TIMEOUT_MS=300`,
+  `PSP_RETRIES=3`; `orders` → `payments` `PAYMENTS_TIMEOUT_MS=1000`; gateway → orders
+  `ORDERS_TIMEOUT_MS=2000`. Code in `payments` `HttpPaymentProvider`: retries
+  **timeouts** (not connection errors), no backoff, no `Idempotency-Key`.
+- **Why it hurts** (with D10 active): ~10 % of PSP calls exceed 300 ms. The PSP keeps
+  processing after the client gives up (`ignore_user_abort`), so every timed-out attempt
+  is a real charge and each retry charges again → **double charges**. payments' budget
+  (4 × 300 ms) exceeds orders' 1 s → orders marks the order `FAILED` while payments keeps
+  retrying and charging → **charged but failed**. D2 resets are not retried at all.
+  (Independent per-request latency only gives ~1.1× PSP calls per checkout in normal
+  traffic, so the original "3–4× load / gateway 504" framing didn't hold.)
+- **Symptom**: support — "charged twice", "charged although the site said it failed",
+  "sometimes checkout just fails".
+- **Signal**: slow checkout trace with **repeated sibling client spans** payments → PSP,
+  PSP server spans outliving the client spans, the orders span ending at 1 s with an error
+  while payments spans continue.
+- **Fix**: PSP timeout 700 ms (above the 8 % band), 1 retry with jittered backoff
+  (50–150 ms) **only on connection errors**, `Idempotency-Key: <orderId>` (fake-psp
+  replays), budget gateway 2.5 s > orders→payments 1.8 s > payments worst case ~1.55 s.
+- **Verify-2 (part)**: with a Toxiproxy `latency` toxic (+300 ms, PSP ≈ 350–400 ms) and 5
+  traced checkouts: ≥ 2 return 201; ≤ 2 payments → PSP client spans per trace; every
+  fake-psp span carries `psp.idempotency_key`. Deterministic at `lab-2-start` (every
+  attempt > 300 ms → 4 calls, 0 successes, 20 keyless charges for 5 orders).
 
 ## D10 — Random long-tail latency in a dependency · Lab 3 · infra
 

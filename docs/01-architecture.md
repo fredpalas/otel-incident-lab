@@ -86,7 +86,7 @@ The **separate Collector** exists so participants can edit a readable
 |---|---|---|---|
 | `lab-1-start` | none / `console.log` noise | none | none |
 | `lab-1-solution` | `pino` JSON → OTLP logs (`pino-opentelemetry-transport`) | none | none |
-| `lab-2-solution` | + `@opentelemetry/instrumentation-pino` injects `trace_id`/`span_id` | NodeSDK + auto-instrumentations (http, express, pg, amqplib) | — |
+| `lab-2-solution` | + `@opentelemetry/instrumentation-pino` injects `trace_id`/`span_id` (`disableLogSending`) | NodeSDK + auto-instrumentations (http, express, nestjs-core, undici/fetch, pg, amqplib; fs/dns/net/router off, express middleware layers ignored) | `OTEL_METRICS_EXPORTER=none` until lab 3 |
 | `lab-3-solution` | — | + manual spans where needed | spanmetrics from Collector |
 | `lab-4-solution` | + `correlation_id` field | + business attributes, Baggage + `BaggageSpanProcessor`, span links in notifier, `code.*` attributes | — |
 
