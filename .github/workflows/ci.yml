@@ -14,6 +14,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          # pnpm comes from corepack below; setup-node's auto cache would look for it first
+          package-manager-cache: false
       - run: corepack enable && pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
@@ -48,7 +50,17 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - name: Checkpoint tags exist
+        id: tags
+        run: |
+          if git rev-parse -q --verify "refs/tags/lab-${{ matrix.lab }}-start" >/dev/null &&
+             git rev-parse -q --verify "refs/tags/lab-${{ matrix.lab }}-solution" >/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::lab-${{ matrix.lab }} tags not created yet — skipping"
+          fi
       - name: lab-${{ matrix.lab }}-start must fail verify
+        if: steps.tags.outputs.present == 'true'
         run: |
           git checkout -q "lab-${{ matrix.lab }}-start"
           sh scripts/apply-scenario.sh ${{ matrix.lab }}
@@ -58,6 +70,7 @@ jobs:
             exit 1
           fi
       - name: lab-${{ matrix.lab }}-solution must pass verify
+        if: steps.tags.outputs.present == 'true'
         run: |
           git checkout -q "lab-${{ matrix.lab }}-solution"
           sh scripts/apply-scenario.sh ${{ matrix.lab }}
