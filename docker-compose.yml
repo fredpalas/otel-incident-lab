@@ -23,9 +23,11 @@ services:
     environment:
       PORT: "8080"
       ORDERS_URL: http://orders:3000
-      ORDERS_TIMEOUT_MS: "2000"
+      ORDERS_TIMEOUT_MS: "2500"
       OTEL_SERVICE_NAME: gateway
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
     depends_on:
       orders:
         condition: service_healthy
@@ -38,12 +40,14 @@ services:
     environment:
       DATABASE_URL: postgres://lab:lab@postgres:5432/lab
       PAYMENTS_URL: http://payments:3000
-      PAYMENTS_TIMEOUT_MS: "1000"
+      PAYMENTS_TIMEOUT_MS: "1800"
       INVENTORY_URL: http://inventory:3000
       # catalog runs in another region: we reach it through the WAN (Toxiproxy).
       CATALOG_URL: http://toxiproxy:8667
       OTEL_SERVICE_NAME: orders
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,6 +69,8 @@ services:
       DATABASE_URL: postgres://lab:lab@postgres:5432/lab
       OTEL_SERVICE_NAME: inventory
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +85,8 @@ services:
     environment:
       OTEL_SERVICE_NAME: catalog
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
 
   payments:
     <<: *node-service
@@ -87,10 +95,12 @@ services:
       dockerfile: services/payments/Dockerfile
     environment:
       PSP_URL: http://toxiproxy:8666
-      PSP_TIMEOUT_MS: "300"
-      PSP_RETRIES: "3"
+      PSP_TIMEOUT_MS: "700"
+      PSP_RETRIES: "1"
       OTEL_SERVICE_NAME: payments
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
     depends_on:
       toxiproxy:
         condition: service_started
@@ -111,6 +121,8 @@ services:
       SMTP_PORT: "1025"
       OTEL_SERVICE_NAME: notifier
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
     depends_on:
       rabbitmq:
         condition: service_healthy

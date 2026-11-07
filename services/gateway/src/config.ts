@@ -12,6 +12,6 @@ export const config = {
     return process.env.ORDERS_URL ?? 'http://orders:3000';
   },
   get ordersTimeoutMs(): number {
-    return intFromEnv('ORDERS_TIMEOUT_MS', 2000);
+    return intFromEnv('ORDERS_TIMEOUT_MS', 2500);
   },
 };

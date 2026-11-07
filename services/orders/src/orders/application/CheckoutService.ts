@@ -43,7 +43,11 @@ export class CheckoutService {
     } catch (error) {
       order.markFailed();
       await this.orders.save(order);
-      logger.error({ order_id: order.id.value, err: error }, 'payment failed, order marked as FAILED');
+      // payments logs the full error; here one line is enough, the trace links them.
+      logger.error(
+        { order_id: order.id.value, upstream: 'payments', cause: (error as Error).message },
+        'payment failed, order marked as FAILED',
+      );
       throw new PaymentFailedError(order.id.value, { cause: error });
     }
 

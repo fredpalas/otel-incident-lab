@@ -9,7 +9,12 @@ export class DomainErrorFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
     const [status, body] = this.map(error);
-    if (status >= 500) logger.error({ err: error, status }, 'checkout failed: upstream error');
+    if (error instanceof UpstreamError && status >= 500) {
+      // The failing service already logged the details; the trace links this line to them.
+      logger.error({ upstream: 'orders', upstream_status: error.status, status }, 'checkout failed: upstream error');
+    } else if (status >= 500) {
+      logger.error({ err: error, status }, 'checkout failed');
+    }
     response.status(status).json(body);
   }
 

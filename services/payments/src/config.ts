@@ -12,10 +12,13 @@ export const config = {
     return process.env.PSP_URL ?? 'http://toxiproxy:8666';
   },
   get pspTimeoutMs(): number {
-    return intFromEnv('PSP_TIMEOUT_MS', 300);
+    return intFromEnv('PSP_TIMEOUT_MS', 700);
   },
   get pspRetries(): number {
-    return intFromEnv('PSP_RETRIES', 3);
+    return intFromEnv('PSP_RETRIES', 1);
+  },
+  get pspBackoffMs(): number {
+    return intFromEnv('PSP_BACKOFF_MS', 100);
   },
   get amqpUrl(): string {
     return process.env.AMQP_URL ?? 'amqp://guest:guest@rabbitmq:5672';
