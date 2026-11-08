@@ -145,21 +145,37 @@ Legend — **Kind**: `code` (fix in code), `config` (fix a parameter), `infra`
 
 ## D8 — Lost context across the queue · Lab 4 · code
 
-- **Where**: `orders` publishes `order.paid` without trace headers; `notifier`
-  consumes without extracting context. Notifier also retries failed "emails" later.
-- **Symptom**: support: "order `ord_123` paid but no email". Notifier traces are
-  orphans; no way to follow one order.
-- **Signal**: orphan root spans in `notifier`. After fix: span link producer ↔
-  consumer; `correlation_id` returns **several traces** for one order.
+- **Where**: `orders` writes `order.paid` to an **outbox** table in the same
+  transaction as the order; `OutboxRelay` publishes it on a 500 ms timer. The relay runs
+  outside the request, so the zero-code amqplib instrumentation propagates the relay's
+  context, not the checkout's: notifier's traces hang off a `publish ticketing` root
+  (ADR-0011). Planted since `lab-1-start`. Notifier sends via Mailpit behind Toxiproxy
+  (SMTP resets: 10 %, 30 % in the lab 4 scenario) and retries from a TTL queue, 3
+  attempts at most; then the order stays `PAID` without email (ADR-0012).
+- **Contrast**: `payment.failed` (payments → inventory, published directly in the
+  request) already shows up inside the checkout trace.
+- **Symptom**: support: "order `<id>` paid but no email". No way to follow one order
+  from the checkout to the notifier attempts.
+- **Signal**: notifier traces rooted at the relay. After fix: span link notifier →
+  checkout; `correlation_id` returns **several traces** for one order (checkout + one
+  per delivery attempt). The ticket gives an **order id**: Loki `order_id` → its
+  `correlation_id` (created by the gateway before the order exists) → everything.
 - **Fix (two layers)**:
-  1. Technical continuity: `traceparent` in message headers + span link.
+  1. Technical continuity: capture `traceparent` when the event is recorded (in the
+     request) into the envelope's `headers`; notifier extracts it and starts its span
+     with a **link** (not a parent: it happens later, after retries).
   2. Business continuity: `correlation_id` (+ `causation_id`) in event envelope;
      `correlation_id` created at gateway, propagated via **Baggage**, copied to
      spans by `BaggageSpanProcessor`, added to every log line.
   3. Security: strip Baggage on egress to `fake-psp` (third party).
-- **Verify-4 (part)**: notifier spans have links to orders spans; all spans of a test
-  order carry `correlation_id`; **no fake-psp span carries `correlation_id`**
-  (fake-psp records any received Baggage as attributes, so a leak is detectable).
+- **Verify-4 (part)**: for one traced checkout (resets off): the server spans of
+  gateway, orders, inventory, catalog and payments carry the gateway's `correlation_id`;
+  **no fake-psp span carries it** (fake-psp records any received Baggage as attributes;
+  the check fails while there is no correlation_id, so it can't pass vacuously); TraceQL
+  by `correlation_id` finds a notifier span with a **link** to the checkout trace, and
+  notifier logs carry it; an orders span has `order.id` (= response), `order.tickets`,
+  `customer.tier`, `code.function.name`, `code.file.path`. D7: ≥ 4/5 checkouts of 7–10
+  tickets succeed.
 
 ## D9 — PII in telemetry · Lab 5 / wrap-up · config
 
