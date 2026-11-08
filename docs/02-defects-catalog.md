@@ -182,19 +182,33 @@ Legend — **Kind**: `code` (fix in code), `config` (fix a parameter), `infra`
 - **Where**: fake-psp (pre-instrumented, "third-party code") sets
   `customer.email` and `card.last4` attributes on its spans.
 - **Signal**: visible in any PSP span in Tempo.
-- **Fix**: Collector `redaction` (or `attributes` delete/hash) processor.
-- **Verify-5 (part)**: no span in Tempo has `customer.email` in clear text.
+- **Fix**: Collector `redaction/pii` processor in the traces pipeline:
+  `blocked_values` (email regex, any attribute) + `blocked_key_patterns` (`card\..*`).
+  Alternatives: `attributes` delete/hash, `transform`.
+- **Verify-5 (part)**: in a traced checkout, no fake-psp span attribute holds an email
+  address, and no `card.*` attribute holds digits.
 
 ## incident-5 — Unknown regression for the agent · Lab 5 · code
 
 - **Spoiler — keep out of participant docs.** Applied by `make incident-5`
   (a patch under `scenarios/incident-5/`).
-- Proposal: `catalog` pricing throws `TypeError: Cannot read properties of undefined
-  (reading 'rate')` only for `customer.tier = "gold"` (discount table missing an
-  entry after a "refactor").
-- Discoverable via: support message with an order id → `correlation_id` → error trace
-  → log with stack → `code.function.name` / `code.file.path` → patch.
-- **Verify-5 (part)**: zero errors for gold-tier checkouts.
+- **What it does**: commits a "refactor" of orders' `LoyaltyTier` (discounts moved to a
+  `Record<string, { rate }>` table) that forgets `gold`: `TypeError: Cannot read
+  properties of undefined (reading 'rate')` in `LoyaltyTier.discountPercent` for every
+  gold customer (`cus_N`, N % 10 = 0) → orders 500 → gateway 502. No order is created,
+  so the support message gives a customer id and the **error reference**
+  (`X-Correlation-Id`, from lab 4), not an order id. `make incident-5` builds a
+  "legacy" copy in `../ticketing-platform` (code + regression, one import commit, no
+  tags/history, spoiler files removed) and runs the stack from it: the agent can't diff
+  its way to the cause. `BASE=main` gives the no-telemetry contrast.
+- Discoverable via: reference = `correlation_id` → Loki: gateway error log with
+  `trace_id` → Tempo: orders span `CheckoutService.placeOrder` in ERROR, exception +
+  stack, `customer.tier=gold`, `code.function.name` / `code.file.path` → the file.
+  orders logs nothing itself for this error: the trace carries the evidence.
+- Hidden from agents in **every** lab (Claude Code hook + opencode.json): the patch,
+  this catalog, `labs/05-ai-mcp/INSTRUCTOR.md` and `SOLUTION.md`.
+- **Verify-5 (part)**: ≥ 4/5 checkouts of gold customers succeed (fails while the
+  incident is live; CI checks that `make incident-5` breaks it on `lab-5-solution`).
 
 ---
 
