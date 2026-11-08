@@ -16,8 +16,8 @@ pays, and receives the tickets by email (simulated).
                  ▼
             ┌─────────┐   in parallel after D5 fix:
             │ orders  │──┬──► inventory ──► Postgres (seats)        [D4 N+1, D6 no pool]
-            └────┬────┘  ├──► catalog /pricing   (fixed ~80 ms)
-                 │       └──► catalog /customers (fixed ~80 ms)     [D7 via tier/tickets]
+            └────┬────┘  ├──► toxiproxy (~80 ms WAN) ──► catalog /pricing    [D7 group price]
+                 │       └──► toxiproxy (~80 ms WAN) ──► catalog /customers  (loyalty tier)
                  │
                  ├──► payments ──► toxiproxy ──► fake-psp (PHP, pre-instrumented)
                  │                                [D2 resets, D3 retries, D10 long tail, D9 PII]
@@ -35,7 +35,7 @@ pays, and receives the tickets by email (simulated).
 | `gateway` | TS | Public API `POST /checkout`, `GET /orders/:id` | yes |
 | `orders` | TS | Checkout orchestration, `orders` table, publishes `order.paid` | yes |
 | `inventory` | TS | `events`, `seats` tables; reserve seats | yes |
-| `catalog` | TS | `/pricing/:eventId`, `/customers/:id` (tier) — fixed latency | yes (lab 4/5) |
+| `catalog` | TS | `/pricing/:eventId?tickets=N` (price list, event and group discounts), `/customers/:id` (loyalty tier); in memory, reached through Toxiproxy (ADR-0010) | yes (lab 4/5) |
 | `payments` | TS | Calls the external PSP | yes |
 | `notifier` | TS | Consumes `order.paid`, "sends" email, marks order `NOTIFIED` | yes |
 | `fake-psp` | PHP | Simulated external payment provider with latency/error profiles | **no** |
@@ -97,9 +97,12 @@ require hooks are enough — ADR-0005). Participants should see that zero-code g
 ## Grafana provisioning (shipped ready, not a lab task)
 
 - Datasources: Tempo ↔ Loki (traces-to-logs by `trace_id`, logs-to-traces derived
-  field), Prometheus with exemplars → Tempo, service graph.
-- Dashboard **"Checkout"**: RED per service (from spanmetrics), latency heatmap,
-  p50/p95/p99, orders by status (Postgres or app metric), error logs panel.
+  field), Prometheus with exemplars → Tempo, service graph, Postgres (business data).
+- Tempo's metrics generator is **off** (`observability/lgtm/tempo-config.yaml`): span
+  metrics and the service graph come only from the Collector's connectors (ADR-0009).
+- Dashboard **"Checkout"**: checkouts/s and error rate, p50/p95/p99 with exemplars,
+  latency heatmap, RED per service (all from spanmetrics), orders by status (Postgres,
+  works from lab 1), error logs panel.
   Panels that depend on telemetry not yet added must show "No data" gracefully —
   that emptiness is part of the story.
 
@@ -107,6 +110,8 @@ require hooks are enough — ADR-0005). Participants should see that zero-code g
 
 - **Code defects**: plain code in the services (D1, D4, D5, D6, D7, D8).
 - **Config defects**: env vars with bad defaults (D3 timeouts/retries).
-- **Infra faults**: Toxiproxy toxics (D2 `reset_peer`), fake-psp latency profile (D10).
+- **Infra faults**: Toxiproxy toxics (D2 `reset_peer` on `psp`; WAN latency on
+  `catalog`, every lab), fake-psp latency profile (D10), fake-psp per-transaction limit
+  (what turns D7 into a `422`).
 - **Scenario profiles**: `scenarios/lab-N.env` + `scenarios/lab-N.toxics.json`,
   applied by `make lab N=…`. Incident 5 is applied by `make incident-5`.
