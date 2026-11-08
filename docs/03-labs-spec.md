@@ -76,8 +76,10 @@ sequential traced checkouts of 6 tickets.
 
 ## Lab 4 — Follow the order (25')
 
-**Tickets**: (a) "Error rate ~3 %, no pattern." (b) "Order `ord_123` was paid but the
-customer never got the email."
+**Tickets**: (a) "Error rate ~3 %, no pattern." (b) "Order `<id>` was paid but the
+customer never got the email." Participants find their own `<id>` with a Postgres query
+(orders still `PAID` after a minute); the scenario resets 30 % of SMTP connections, so
+~2.7 % of orders exhaust their 3 email attempts.
 
 1. (5') Add business attributes to the checkout span: `order.tickets`,
    `customer.tier`, `order.id`. TraceQL `{ status = error && span.order.tickets > 6 }`
@@ -85,14 +87,15 @@ customer never got the email."
 2. (7') Generate `correlation_id` in gateway, put it in **Baggage**, add
    `BaggageSpanProcessor`, add the field to the logger mixin. Strip Baggage on egress
    to fake-psp.
-3. (8') `orders`: add `correlation_id` + `causation_id` to the event envelope and
-   inject `traceparent` into message headers. `notifier`: extract context, create a
-   span **link**. Also add `code.function.name` / `code.file.path` to manual spans
+3. (8') `orders`: add `correlation_id` + `causation_id` + `traceparent` to the envelope
+   when the event is written to the outbox (the relay publishes later, outside the
+   request — that's where the context is lost). `notifier`: extract it, create a span
+   **link**, put `correlation_id` back in the Baggage. Also add `code.function.name` / `code.file.path` to manual spans
    (needed by the agent in lab 5).
-4. (5') Search `ord_123`:
-   - Loki `{service_name=~".+"} | json | correlation_id="ord_123"` → full story
-     including the notifier retry.
-   - Tempo `{ span.correlation_id = "ord_123" }` → 3 traces, one order.
+4. (5') Follow the order id:
+   - Loki `{service_name=~".+"} | order_id="<id>"` → its `correlation_id`;
+   - Loki `| correlation_id="<cid>"` → full story including the notifier retries;
+   - Tempo `{ span.correlation_id = "<cid>" }` → several traces, one order.
 
 **Verify-4**: D7 + D8 checks (including no `correlation_id` on fake-psp spans).
 
