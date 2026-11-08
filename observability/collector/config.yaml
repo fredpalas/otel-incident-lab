@@ -9,6 +9,17 @@ receivers:
 processors:
   batch:
     timeout: 1s
+  # Personal data must not reach the telemetry backend, whoever put it on the span
+  # (here: the PSP's own instrumentation, which we can't change).
+  redaction/pii:
+    allow_all_keys: true
+    # Any value that looks like an email address, on any attribute.
+    blocked_values:
+      - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    # Card data, whatever its value.
+    blocked_key_patterns:
+      - "card\\..*"
+    summary: info
 
 exporters:
   otlp_grpc/lgtm:
@@ -43,7 +54,7 @@ service:
       exporters: [otlp_grpc/lgtm]
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: [redaction/pii, batch]
       exporters: [otlp_grpc/lgtm, spanmetrics, servicegraph]
     metrics:
       receivers: [spanmetrics, servicegraph]
