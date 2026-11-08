@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Span } from '@opentelemetry/api';
 import { CustomerId } from '../domain/CustomerId';
 import { Customers } from '../domain/Customers';
 import { EventId } from '../domain/EventId';
@@ -13,6 +14,7 @@ import { Pricing } from '../domain/Pricing';
 import { SeatReservations } from '../domain/SeatReservations';
 import { TicketQuantity } from '../domain/TicketQuantity';
 import { logger } from '../../shared/infrastructure/logger';
+import { inSpan } from '../../shared/infrastructure/tracing';
 import type { PlaceOrderCommand } from './PlaceOrderCommand';
 
 @Injectable()
@@ -25,8 +27,16 @@ export class CheckoutService {
     private readonly customers: Customers,
   ) {}
 
-  async placeOrder(command: PlaceOrderCommand): Promise<OrderDto> {
+  placeOrder(command: PlaceOrderCommand): Promise<OrderDto> {
+    return inSpan('CheckoutService.placeOrder', __filename, { 'order.tickets': command.tickets }, async (span) => {
+      const order = await this.place(command, span);
+      return order.toDto();
+    });
+  }
+
+  private async place(command: PlaceOrderCommand, span: Span): Promise<Order> {
     const orderId = OrderId.generate();
+    span.setAttribute('order.id', orderId.value);
     const customerId = CustomerId.of(command.customerId);
     const eventId = EventId.of(command.eventId);
     const tickets = TicketQuantity.of(command.tickets);
@@ -37,6 +47,8 @@ export class CheckoutService {
       this.pricing.unitPrice(eventId, tickets),
       this.customers.tierOf(customerId),
     ]);
+
+    span.setAttribute('customer.tier', tier.value);
 
     const order = Order.place(orderId, customerId, eventId, tickets, unitPrice, tier);
     await this.orders.save(order);
@@ -56,7 +68,7 @@ export class CheckoutService {
 
     order.markPaid();
     await this.orders.save(order);
-    return order.toDto();
+    return order;
   }
 
   async confirmNotification(id: string): Promise<void> {

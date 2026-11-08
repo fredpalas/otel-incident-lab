@@ -34,6 +34,10 @@ describe('Price', () => {
     expect(price.unitPriceFor(TicketQuantity.of(6))).toEqual(Money.of(4500, 'EUR'));
   });
 
+  test('a group booking gets 10 % off each ticket', () => {
+    expect(price.unitPriceFor(TicketQuantity.of(7))).toEqual(Money.of(4050, 'EUR'));
+  });
+
   test('the current price is the one with the highest priority valid on that date', async () => {
     const promo = Price.of(eventId, DateRange.of(new Date('2026-11-01'), new Date('2026-11-30')), Priority.of(10), Money.of(3900, 'EUR'));
     const prices = new InMemoryPriceRepository([price, promo]);

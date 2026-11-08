@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Injectable } from '@nestjs/common';
+import { context, propagation } from '@opentelemetry/api';
 import { config } from '../../../config';
 import { PaymentProvider, type ProviderCharge } from '../../domain/PaymentProvider';
 import type { PaymentRequest } from '../../domain/PaymentRequest';
@@ -48,12 +49,16 @@ export class HttpPaymentProvider extends PaymentProvider {
   }
 
   private async post(body: string, idempotencyKey: string): Promise<PspCharge> {
-    const response = await fetch(`${config.pspUrl}/charges`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-      body,
-      signal: AbortSignal.timeout(config.pspTimeoutMs),
-    });
+    // Baggage is for our own services: the PSP is a third party and must not receive it.
+    const withoutBaggage = propagation.deleteBaggage(context.active());
+    const response = await context.with(withoutBaggage, () =>
+      fetch(`${config.pspUrl}/charges`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+        body,
+        signal: AbortSignal.timeout(config.pspTimeoutMs),
+      }),
+    );
     if (!response.ok) {
       throw new PaymentProviderError(`psp responded ${response.status}: ${await response.text()}`);
     }

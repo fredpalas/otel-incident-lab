@@ -10,6 +10,7 @@ import { OrderRepository } from '../../domain/OrderRepository';
 import { OrderStatus } from '../../domain/OrderStatus';
 import { TicketQuantity } from '../../domain/TicketQuantity';
 import type { EventEnvelope } from '../../../shared/infrastructure/messaging/EventEnvelope';
+import { causedByCurrentRequest } from '../../../shared/infrastructure/messaging/causedByCurrentRequest';
 
 interface OrderRow {
   id: string;
@@ -70,6 +71,7 @@ export class PgOrderRepository extends OrderRepository implements OnModuleInit {
           eventId: randomUUID(),
           eventName: event.eventName,
           occurredOn: event.occurredOn.toISOString(),
+          ...causedByCurrentRequest(),
           data: event.toPrimitives(),
         };
         await client.query('INSERT INTO outbox (id, event_name, payload, occurred_on) VALUES ($1, $2, $3, $4)', [
