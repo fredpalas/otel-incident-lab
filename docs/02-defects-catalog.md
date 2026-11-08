@@ -131,7 +131,7 @@ Legend — **Kind**: `code` (fix in code), `config` (fix a parameter), `infra`
 
 ## D7 — Fails only for a business segment · Lab 4 · code
 
-- **Where**: `catalog`'s `PricingService` uses `Price.forGroup(tickets)` for 7+
+- **Where**: `catalog`'s `Price.unitPriceFor` uses `forGroup(tickets)` for 7+
   tickets, which returns the discounted **total** of the group, and publishes it as
   `unitPriceCents`; `orders` multiplies it by the tickets again. The PSP rejects the
   amount (`422 amount exceeds the per-transaction limit`, 100 000 cents). Planted since
