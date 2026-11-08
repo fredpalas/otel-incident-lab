@@ -28,6 +28,7 @@ interface OtlpSpan {
   kind?: string | number;
   startTimeUnixNano?: string;
   endTimeUnixNano?: string;
+  links?: Array<{ traceId: string; spanId: string }>;
   status?: { code?: string | number; message?: string };
   attributes?: OtlpAttribute[];
 }
@@ -47,6 +48,8 @@ export interface Span {
   depth: number;
   startMs: number;
   endMs: number;
+  /** Trace ids (hex) this span links to. */
+  links: string[];
 }
 
 const KINDS = ['unspecified', 'internal', 'server', 'client', 'producer', 'consumer'] as const;
@@ -56,6 +59,9 @@ const toKind = (kind: string | number | undefined): Span['kind'] => {
   const name = (kind ?? '').replace('SPAN_KIND_', '').toLowerCase();
   return (KINDS as readonly string[]).includes(name) ? (name as Span['kind']) : 'unspecified';
 };
+
+// Tempo's JSON may carry ids base64-encoded (OTLP/JSON over protobuf bytes) or as hex.
+const toHexId = (id: string): string => (/^[0-9a-f]{32}$/i.test(id) ? id.toLowerCase() : Buffer.from(id, 'base64').toString('hex'));
 
 const toValue = (v: AnyValue): string | number | boolean =>
   v.stringValue ?? v.boolValue ?? v.doubleValue ?? (v.intValue !== undefined ? Number(v.intValue) : '');
@@ -87,6 +93,7 @@ export async function getTrace(traceId: string): Promise<Span[] | undefined> {
         depth: 0,
         startMs: Number(s.startTimeUnixNano ?? 0) / 1e6,
         endMs: Number(s.endTimeUnixNano ?? 0) / 1e6,
+        links: (s.links ?? []).map((l) => toHexId(l.traceId)),
       })),
     );
   });
