@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lab: [1, 2]
+        lab: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
         with:
