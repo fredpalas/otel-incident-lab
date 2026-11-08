@@ -48,7 +48,7 @@ otel-incident-lab/
 
 | Target | Behaviour |
 |---|---|
-| `pull` | Pull all images + `pnpm fetch`; works offline afterwards |
+| `pull` | Pull every image (pinned by digest, incl. profiles `tools`, `load`, `ai`) and build the local ones; afterwards everything works offline: `up`, `lab`, `solution`, `verify`, `mcp-token`, `incident-5` (verified in a network-less Docker-in-Docker, phase 6). ~7 GB images + ~6 GB build cache: jumping between tags rebuilds only the source layers, the dependency layers come from the cache |
 | `up` / `down` | Compose up (detached) / down |
 | `reset` | Down with volumes, re-seed DB |
 | `lab N=` | Safe jump (see below) to `lab-N-start`, apply `scenarios/lab-N.*`, restart services |
