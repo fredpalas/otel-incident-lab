@@ -18,6 +18,7 @@ the intro.
 | 1. `AGENTS.md` (instructions) | Codex, Cursor, Copilot, Claude Code (via import), most others | Soft |
 | 2. Pointer files: `CLAUDE.md` (`@AGENTS.md`), `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/workshop.mdc` (`alwaysApply: true`) | Agents that don't read AGENTS.md | Soft |
 | 3. Claude Code hooks in `.claude/settings.json` | Claude Code | Hard-ish (blocks tool calls) |
+| 3a. Copilot CLI repo hooks in `.github/hooks/agent-guard.json` (same script, `--copilot`: top-level decision + exit 2; loaded only in a trusted folder) | GitHub Copilot CLI | Hard-ish |
 | 3b. `opencode.json` permissions (no hooks in opencode: the file itself is locked on `lab-1-start`…`lab-4-solution` and unlocked on `lab-5-start`) | opencode | Hard-ish (deny rules) |
 | 4. `.lab-state` + Makefile | All (source of truth for the active lab) | — |
 | 5. Social: README section + intro slide | Humans | — |
@@ -116,6 +117,12 @@ those files, so neither the guard nor the history matters there.
   Rules are ordered, last match wins, so `"*": "allow"` comes first.
 - Lab 5: `edit` and `bash` → `ask`, the `grafana` MCP server enabled, the incident
   paths still denied.
+
+## Manual validation
+
+Results per agent and version, gotchas and the re-run recipe:
+[`scripts/agent-guard/COMPATIBILITY.md`](../scripts/agent-guard/COMPATIBILITY.md).
+Re-run it whenever an agent gets a major update.
 
 ## Participant-facing copy
 
