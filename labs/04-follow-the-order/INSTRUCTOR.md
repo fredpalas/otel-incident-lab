@@ -10,7 +10,7 @@ orders exhaust their 3 email attempts and stay `PAID` (ticket #4805).
 
 | Min | What |
 |---|---|
-| 0–8 | Business attributes + manual span with `code.*` in `CheckoutService`. TraceQL `{ status = error && span.order.tickets > 6 }` → catalog `Price.forGroup`. Fix. |
+| 0–8 | Business attributes + manual span with `code.*` in `CheckoutService`. TraceQL `{ status = error && span.order.tickets > 6 }` → catalog `Price.unitPriceFor` / `forGroup`. Fix. |
 | 8–22 | `correlation_id` in gateway → Baggage. `BaggageSpanProcessor` + logger mixin in every service (Hint 2 on the projector at minute 14). Show a fake-psp span with `correlation_id` on it: "we just sent our internal ids to a third party". Strip it in payments. |
 | 22–36 | Notifier trace rooted at `publish ticketing`. Why? The outbox relay. Envelope gets `correlationId`, `causationId`, `headers`; notifier extracts and links. |
 | 36–45 | Follow #4805 from the order id. `make verify N=4`. |
@@ -30,7 +30,7 @@ orders exhaust their 3 email attempts and stay `PAID` (ticket #4805).
 
 ## Expected fix (see SOLUTION.md)
 
-- catalog: `Price.forGroup()` returns the discounted **unit** price (plus the missing test).
+- catalog: `Price.forGroup()` (called by `unitPriceFor`) returns the discounted **unit** price (plus the missing test).
 - orders: manual span `CheckoutService.placeOrder` with `order.*`, `customer.tier`,
   `code.*`; the outbox envelope carries `correlationId`, `causationId`, `headers`.
 - gateway: middleware creating `correlation_id` in Baggage (and `X-Correlation-Id`).
