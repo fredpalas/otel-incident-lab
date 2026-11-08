@@ -16,6 +16,20 @@ exporters:
     tls:
       insecure: true
 
+connectors:
+  # RED metrics from spans: calls, errors and a latency histogram per service/span name.
+  # Buckets around what matters: our ~200 ms checkouts and the PSP's 1.5–3 s tail.
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [50ms, 100ms, 200ms, 300ms, 500ms, 750ms, 1s, 1.5s, 2s, 3s, 5s]
+    exemplars:
+      enabled: true
+    metrics_flush_interval: 15s
+  # Who calls whom, from client/server span pairs (Grafana's service graph).
+  servicegraph:
+    metrics_flush_interval: 15s
+
 extensions:
   health_check:
     endpoint: 0.0.0.0:13133
@@ -29,5 +43,9 @@ service:
       exporters: [otlp_grpc/lgtm]
     traces:
       receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_grpc/lgtm, spanmetrics, servicegraph]
+    metrics:
+      receivers: [spanmetrics, servicegraph]
       processors: [batch]
       exporters: [otlp_grpc/lgtm]

@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { Client } from 'pg';
-import { config } from '../../../config';
+import { Pool } from 'pg';
 import type { SeatRepository } from '../../domain/SeatRepository';
 import { UnitOfWork } from '../../domain/UnitOfWork';
 import { PgSeatRepository } from './PgSeatRepository';
 
-/** One database transaction per unit of work. */
+/** One database transaction per unit of work, on a connection borrowed from the pool. */
 @Injectable()
 export class PgUnitOfWork extends UnitOfWork {
+  constructor(private readonly pool: Pool) {
+    super();
+  }
+
   async run<T>(work: (seats: SeatRepository) => Promise<T>): Promise<T> {
-    const client = new Client({ connectionString: config.databaseUrl });
-    await client.connect();
+    const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const result = await work(new PgSeatRepository(client));
@@ -20,7 +22,7 @@ export class PgUnitOfWork extends UnitOfWork {
       await client.query('ROLLBACK');
       throw error;
     } finally {
-      await client.end();
+      client.release();
     }
   }
 }

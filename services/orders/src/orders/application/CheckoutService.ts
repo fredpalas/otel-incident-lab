@@ -31,9 +31,12 @@ export class CheckoutService {
     const eventId = EventId.of(command.eventId);
     const tickets = TicketQuantity.of(command.tickets);
 
-    await this.seats.reserve(orderId, eventId, tickets);
-    const unitPrice = await this.pricing.unitPrice(eventId, tickets);
-    const tier = await this.customers.tierOf(customerId);
+    // Independent calls: wait for the slowest, not for the sum. The first failure rejects the checkout.
+    const [, unitPrice, tier] = await Promise.all([
+      this.seats.reserve(orderId, eventId, tickets),
+      this.pricing.unitPrice(eventId, tickets),
+      this.customers.tierOf(customerId),
+    ]);
 
     const order = Order.place(orderId, customerId, eventId, tickets, unitPrice, tier);
     await this.orders.save(order);

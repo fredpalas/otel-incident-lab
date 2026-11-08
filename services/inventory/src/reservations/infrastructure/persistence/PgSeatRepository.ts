@@ -24,30 +24,25 @@ export class PgSeatRepository extends SeatRepository {
     return (rowCount ?? 0) > 0;
   }
 
-  async availableSeatIds(eventId: EventId, count: SeatCount): Promise<SeatId[]> {
-    const { rows } = await this.client.query<{ id: string }>(
-      `SELECT id FROM seats WHERE event_id = $1 AND status = 'AVAILABLE'
+  async findAvailable(eventId: EventId, count: SeatCount): Promise<Seat[]> {
+    const { rows } = await this.client.query<SeatRow>(
+      `SELECT id, event_id, status, order_id FROM seats WHERE event_id = $1 AND status = 'AVAILABLE'
        ORDER BY id LIMIT $2 FOR UPDATE SKIP LOCKED`,
       [eventId.value, count.value],
     );
-    return rows.map((row) => SeatId.of(row.id));
-  }
-
-  async find(id: SeatId): Promise<Seat | undefined> {
-    const { rows } = await this.client.query<SeatRow>('SELECT id, event_id, status, order_id FROM seats WHERE id = $1', [id.value]);
-    const row = rows[0];
-    if (!row) return undefined;
-    return Seat.restore(
-      SeatId.of(row.id),
-      EventId.of(row.event_id),
-      SeatStatus.of(row.status),
-      row.order_id ? OrderId.of(row.order_id) : undefined,
+    return rows.map((row) =>
+      Seat.restore(SeatId.of(row.id), EventId.of(row.event_id), SeatStatus.of(row.status), row.order_id ? OrderId.of(row.order_id) : undefined),
     );
   }
 
-  async save(seat: Seat): Promise<void> {
-    const dto = seat.toDto();
-    await this.client.query('UPDATE seats SET status = $2, order_id = $3 WHERE id = $1', [dto.id, dto.status, dto.orderId ?? null]);
+  async saveAll(seats: Seat[]): Promise<void> {
+    const dtos = seats.map((seat) => seat.toDto());
+    await this.client.query(
+      `UPDATE seats AS s SET status = v.status, order_id = v.order_id::uuid
+       FROM unnest($1::bigint[], $2::text[], $3::text[]) AS v (id, status, order_id)
+       WHERE s.id = v.id`,
+      [dtos.map((d) => d.id), dtos.map((d) => d.status), dtos.map((d) => d.orderId ?? null)],
+    );
   }
 
   async releaseFor(orderId: OrderId): Promise<void> {

@@ -17,7 +17,9 @@ describe('orders HTTP API', () => {
     inventory = new StubServer((req) =>
       (req.body as { eventId?: string }).eventId === 'evt_soldout'
         ? { status: 409, body: { error: 'only 0 seats left for evt_soldout' } }
-        : { status: 201, body: { seatIds: ['1', '2'] } },
+        : (req.body as { eventId?: string }).eventId === 'evt_broken'
+          ? { status: 500, body: { error: 'internal error' } }
+          : { status: 201, body: { seatIds: ['1', '2'] } },
     );
     catalog = new StubServer((req) =>
       req.url.startsWith('/customers/')
@@ -91,6 +93,14 @@ describe('orders HTTP API', () => {
 
     const res = await request(app.getHttpServer()).get(`/orders/${created.body.id}`).expect(200);
     expect(res.body.status).toBe('NOTIFIED');
+  });
+
+  test('POST /orders is 502 and charges nothing when inventory fails', async () => {
+    const charges = payments.requests.length;
+
+    await request(app.getHttpServer()).post('/orders').send({ customerId: 'cus_fn', eventId: 'evt_broken', tickets: 2 }).expect(502);
+
+    expect(payments.requests).toHaveLength(charges);
   });
 
   test('GET /orders/:id returns the stored order', async () => {
