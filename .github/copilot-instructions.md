@@ -52,6 +52,27 @@ When `.lab-state` says lab 5, coach mode is off. Follow `labs/05-ai-mcp/README.m
 investigate with the Grafana MCP tools, find the root cause, propose a minimal fix,
 and **wait for the participant's approval before changing files**.
 
+Even in lab 5, never read `scenarios/incident-5/`, `docs/02-defects-catalog.md`,
+`labs/05-ai-mcp/INSTRUCTOR.md` or `labs/05-ai-mcp/SOLUTION.md`: they spell out the
+incident you are asked to investigate. Find it in the telemetry.
+
+### Telemetry conventions (what labs 1–4 built)
+
+- **Loki** (datasource `loki`): one stream per `service_name` (`gateway`, `orders`,
+  `inventory`, `catalog`, `payments`, `notifier`). Ids are **structured metadata**, not
+  text in the line: filter with `| correlation_id="<id>"`, `| order_id="<id>"`,
+  `| trace_id="<id>"`; `severity_text` holds the level.
+- An **error reference** shown to a customer is the request's `correlation_id`
+  (`X-Correlation-Id`). It is on every log line and span of that request.
+- **Tempo** (datasource `tempo`): spans carry `correlation_id`, `order.id`,
+  `order.tickets`, `customer.tier`; manual spans carry `code.function.name` and
+  `code.file.path` (path of the source in this repo). Exceptions are span events with
+  the stack trace.
+- **Prometheus** (datasource `prometheus`): RED metrics from spans,
+  `traces_span_metrics_calls_total` / `traces_span_metrics_duration_milliseconds_bucket`
+  (labels `service_name`, `span_name`, `status_code`).
+- After changing a service's code, rebuild it with `make up` before verifying.
+
 ## Why
 
 This is an honor-system agreement, not a lock. Participants agreed to it by joining

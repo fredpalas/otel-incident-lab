@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "grafana": {
+      "type": "local",
+      "command": "docker",
+      "args": ["compose", "--profile", "ai", "run", "--rm", "-i", "-T", "mcp-grafana"],
+      "tools": ["*"]
+    }
+  }
+}

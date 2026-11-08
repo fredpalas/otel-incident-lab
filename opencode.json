@@ -1,38 +1,39 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": {
-    "edit": {
-      "*": "allow",
-      "services/**": "deny",
-      "observability/**": "deny",
-      "scenarios/**": "deny"
-    },
+    "edit": "ask",
     "read": {
       "*": "allow",
       "*.env": "ask",
       "*.env.*": "ask",
-      "labs/*/SOLUTION.md": "deny",
+      "scenarios/incident-5/**": "deny",
       "docs/02-defects-catalog.md": "deny",
-      "docs/authoring/**": "deny",
-      "scenarios/incident-5/**": "deny"
+      "labs/05-ai-mcp/INSTRUCTOR.md": "deny",
+      "labs/05-ai-mcp/SOLUTION.md": "deny"
     },
     "bash": {
-      "*": "allow",
-      "make solution*": "deny",
-      "sh scripts/jump.sh solution*": "deny",
-      "git * lab-*-solution*": "deny",
-      "git * solution/lab-*": "deny",
-      "git apply*": "deny",
+      "*": "ask",
       "*scenarios/incident-5*": "deny",
-      "*SOLUTION.md*": "deny"
-    },
-    "grafana_*": "deny"
+      "*docs/02-defects-catalog*": "deny",
+      "*labs/05-ai-mcp/INSTRUCTOR*": "deny",
+      "*labs/05-ai-mcp/SOLUTION*": "deny"
+    }
   },
   "mcp": {
     "grafana": {
       "type": "local",
-      "command": ["docker", "compose", "--profile", "ai", "run", "--rm", "-i", "-T", "mcp-grafana"],
-      "enabled": false
+      "command": [
+        "docker",
+        "compose",
+        "--profile",
+        "ai",
+        "run",
+        "--rm",
+        "-i",
+        "-T",
+        "mcp-grafana"
+      ],
+      "enabled": true
     }
   }
 }

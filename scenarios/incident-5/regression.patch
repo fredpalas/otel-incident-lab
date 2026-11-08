@@ -1,0 +1,34 @@
+diff --git a/services/orders/src/orders/domain/LoyaltyTier.ts b/services/orders/src/orders/domain/LoyaltyTier.ts
+index 2b1a80a..532e791 100644
+--- a/services/orders/src/orders/domain/LoyaltyTier.ts
++++ b/services/orders/src/orders/domain/LoyaltyTier.ts
+@@ -1,7 +1,13 @@
+ import { InvalidArgumentError } from '../../shared/domain/InvalidArgumentError';
+ 
+-const DISCOUNT_PERCENT = { standard: 0, silver: 5, gold: 10 } as const;
+-type Tier = keyof typeof DISCOUNT_PERCENT;
++const TIERS = ['standard', 'silver', 'gold'] as const;
++type Tier = (typeof TIERS)[number];
++
++// Discount rates per tier, in the same shape the CRM exports them.
++const LOYALTY_RATES: Record<string, { rate: number }> = {
++  standard: { rate: 0 },
++  silver: { rate: 0.05 },
++};
+ 
+ export class LoyaltyTier {
+   static readonly STANDARD = new LoyaltyTier('standard');
+@@ -9,11 +15,11 @@ export class LoyaltyTier {
+   private constructor(readonly value: Tier) {}
+ 
+   static of(value: string): LoyaltyTier {
+-    if (!Object.hasOwn(DISCOUNT_PERCENT, value)) throw new InvalidArgumentError(`"${value}" is not a loyalty tier`);
++    if (!(TIERS as readonly string[]).includes(value)) throw new InvalidArgumentError(`"${value}" is not a loyalty tier`);
+     return new LoyaltyTier(value as Tier);
+   }
+ 
+   discountPercent(): number {
+-    return DISCOUNT_PERCENT[this.value];
++    return Math.round(LOYALTY_RATES[this.value].rate * 100);
+   }
+ }

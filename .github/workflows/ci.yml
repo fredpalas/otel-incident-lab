@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lab: [1, 2, 3, 4]
+        lab: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -120,6 +120,15 @@ jobs:
           sh scripts/apply-scenario.sh ${{ matrix.lab }}
           make up
           make verify N=${{ matrix.lab }}
+      - name: incident-5 must break verify-5 again
+        if: steps.tags.outputs.present == 'true' && matrix.lab == 5
+        run: |
+          sh scripts/incident-5.sh HEAD "$RUNNER_TEMP/ticketing-platform"
+          cd "$RUNNER_TEMP/ticketing-platform"
+          if make verify N=5; then
+            echo "::error::verify-5 passed with incident-5 live — the regression is not reproduced"
+            exit 1
+          fi
       - name: Diagnostics
         if: failure()
         run: |
