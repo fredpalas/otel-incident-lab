@@ -9,7 +9,7 @@ Context for the AI agent that **builds** this repo. Loaded via the git-ignored
 
 ## What this repo is
 
-The material for a **3-hour hands-on workshop** ("Production Incident Lab: Debugging
+The material for a **3.5-hour hands-on workshop** ("Production Incident Lab: Debugging
 Distributed Systems with OpenTelemetry") at Upskilling Week Barcelona (Mobile World
 Capital / Talent Arena), 16–19 Nov 2026. Audience: senior engineers, 20–80 people,
 each on their own laptop.

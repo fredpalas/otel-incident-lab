@@ -11,7 +11,7 @@
 | Event | Upskilling Week Barcelona (MWCapital + Barcelona Activa + Generalitat) |
 | Dates | 16–19 Nov 2026, slots 15:00–20:30 |
 | Venue | Media TIC, Barcelona |
-| Duration | **3 hours** incl. 10' break |
+| Duration | **3 h 30'** incl. 10' break |
 | Group | 20–80 participants, >80 % senior |
 | Language | English (can be delivered in Spanish) |
 | Machines | Participants' own laptops, min 8 GB RAM. Venue Wi-Fi is unreliable → everything pre-pulled. Fallback: GitHub Codespaces |
@@ -38,19 +38,21 @@ Every lab starts from a **symptom** a user or support would report, never from
 
 **Labs 1–4 are done without AI.** Lab 5 replays the same investigation with an agent.
 
-## Agenda (180')
+## Agenda (210')
 
 | Time | Block | Defects |
 |---|---|---|
 | 10' | Intro: observability vs monitoring; OTel in 5 minutes (signals, SDK, Collector, OTLP, context propagation) | — |
 | 5' | Meet the system + the support ticket | — |
-| 20' | **Lab 1 — Silent failure** | D1, D2 |
-| 30' | **Lab 2 — Traces** | D2, D3 |
+| 25' | **Lab 1 — Silent failure** | D1, D2 |
+| 45' | **Lab 2 — Traces** | D2, D3 |
 | 10' | Break | — |
-| 35' | **Lab 3 — Latency** | D10, D4, D5, D6 |
-| 25' | **Lab 4 — Follow the order** | D7, D8 + correlation id |
+| 40' | **Lab 3 — Latency** | D10, D4, D5, D6 |
+| 45' | **Lab 4 — Follow the order** | D7, D8 + correlation id |
 | 25' | **Lab 5 — Agent + MCP, and wrap-up** (strategy, sampling, cost, D9 PII) | incident-5, D9 |
-| 20' | Buffer (Docker issues, Q&A) | — |
+| 5' | Buffer (Q&A; setup issues are handled during the intro) | — |
+
+Slots follow the timed replay of phase 6 (`labs/INSTRUCTOR.md`, "Timing reality").
 
 ## Success criteria for the material
 
