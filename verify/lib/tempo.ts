@@ -26,6 +26,8 @@ interface OtlpSpan {
   parentSpanId?: string;
   name: string;
   kind?: string | number;
+  startTimeUnixNano?: string;
+  endTimeUnixNano?: string;
   status?: { code?: string | number; message?: string };
   attributes?: OtlpAttribute[];
 }
@@ -43,6 +45,8 @@ export interface Span {
   error: boolean;
   attributes: Record<string, string | number | boolean>;
   depth: number;
+  startMs: number;
+  endMs: number;
 }
 
 const KINDS = ['unspecified', 'internal', 'server', 'client', 'producer', 'consumer'] as const;
@@ -81,6 +85,8 @@ export async function getTrace(traceId: string): Promise<Span[] | undefined> {
         error: s.status?.code === 'STATUS_CODE_ERROR' || s.status?.code === 2,
         attributes: toRecord(s.attributes),
         depth: 0,
+        startMs: Number(s.startTimeUnixNano ?? 0) / 1e6,
+        endMs: Number(s.endTimeUnixNano ?? 0) / 1e6,
       })),
     );
   });
@@ -96,3 +102,30 @@ export async function getTrace(traceId: string): Promise<Span[] | undefined> {
 
 export const deepestErrorSpan = (spans: Span[]): Span | undefined =>
   spans.filter((s) => s.error).sort((a, b) => b.depth - a.depth)[0];
+
+/**
+ * Fetches each trace until it has spans from every service in `services` (each service
+ * exports its own batch, every few seconds). Traces still incomplete at the timeout are
+ * returned as they are, missing ones as undefined.
+ */
+export async function waitForTraces(
+  ids: string[],
+  services: string[],
+  timeoutMs: number,
+): Promise<Map<string, Span[] | undefined>> {
+  const found = new Map<string, Span[] | undefined>();
+  const complete = (spans: Span[] | undefined): boolean =>
+    Boolean(spans) && services.every((svc) => spans?.some((s) => s.service === svc));
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    for (const id of ids) {
+      if (!complete(found.get(id))) found.set(id, (await getTrace(id).catch(() => undefined)) ?? found.get(id));
+    }
+    if (ids.every((id) => complete(found.get(id))) || Date.now() >= deadline) break;
+    await new Promise((r) => setTimeout(r, 2_000));
+  }
+  // Late spans of a service that already reported arrive in its next batch.
+  await new Promise((r) => setTimeout(r, 2_000));
+  for (const id of ids) if (found.get(id)) found.set(id, await getTrace(id).catch(() => found.get(id)));
+  return found;
+}
