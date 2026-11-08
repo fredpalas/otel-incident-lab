@@ -76,53 +76,68 @@ Legend — **Kind**: `code` (fix in code), `config` (fix a parameter), `infra`
   set with it in mind).
 - **Symptom**: average and p50 look fine; p99 is terrible; users complain "sometimes".
 - **Signal**: latency **heatmap is bimodal**; click a p99 **exemplar** → trace where
-  one span (`payments → fake-psp`) takes all the time. TraceQL
-  `{ resource.service.name = "payments" && duration > 1s }`.
+  one span (`payments → fake-psp`) takes all the time. From lab 3 on (lab 2's fix in
+  place) payments cuts those calls at 700 ms, so the top band of the checkout heatmap
+  sits at ~0.8–1 s with errors, while the PSP's own span in the same trace runs 1.5–3 s.
+  TraceQL `{ resource.service.name = "fake-psp" && duration > 1s }`.
 - **Fix**: none in our code. Lesson: averages lie; prove it's the dependency;
   decide timeout / SLO / fallback. Discussion, not code.
 - **Verify-3 (part)**: the conclusion itself is not checked automatically (it's
-  infra). Verify only checks that spanmetrics histograms with exemplars exist in
-  Prometheus (i.e. the Collector config step was done).
+  infra). Verify only checks that fresh spanmetrics histograms with exemplars, and the
+  service graph, exist in Prometheus (i.e. the Collector step was done). Tempo's own
+  metrics generator is off, so only the Collector can produce them (ADR-0009).
 
 ## D4 — N+1 queries · Lab 3 · code
 
-- **Where**: `inventory` loads seats one by one in a loop (`SELECT … WHERE id = $1`
-  ×N) to check availability.
+- **Where**: `inventory`'s `ReservationService` locks the candidate seat ids, then
+  loads and saves each `Seat` aggregate in a loop (`SELECT … WHERE id = $1` and
+  `UPDATE … WHERE id = $1`, ×N): 1 + 2N queries. The N+1 a clean repository produces.
 - **Symptom**: checkout latency grows with ticket count.
 - **Signal**: "comb" pattern — dozens of tiny `pg.query` spans under one parent;
   `db.query.text` shows the repeated query.
 - **Fix**: single query with `= ANY($1)` / `IN`, or a `JOIN`.
-- **Verify-3 (part)**: for a checkout of 10 tickets, `inventory` emits ≤ 3 DB spans.
+- **Verify-3 (part)**: for a checkout of 6 tickets (the largest that isn't a group
+  booking, see D7), `inventory` emits ≤ 3 query spans, BEGIN/COMMIT/ROLLBACK not
+  counted (13 at `lab-3-start`, 2 after the fix).
 
 ## D5 — Sequential awaits · Lab 3 · code
 
 - **Where**: `orders` calls `inventory`, `catalog/pricing`, `catalog/customers`
   sequentially although they are independent.
-- **Symptom**: ~250 ms of avoidable latency on every checkout.
+- **Symptom**: ~100 ms of avoidable latency on every checkout (catalog sits behind
+  ~80 ms of WAN latency, a Toxiproxy toxic — ADR-0010): ~190 ms → ~90 ms.
 - **Signal**: "staircase" — non-overlapping sibling spans. Compare before/after
   traces in two tabs.
 - **Fix**: `Promise.all` (with proper error handling).
-- **Verify-3 (part)**: in a checkout trace, the three sibling spans overlap in time.
+- **Verify-3 (part)**: in 5 sequential traced checkouts, the three client spans of
+  `orders` overlap: their envelope is < 0.8 × the sum of their durations (Tempo rounds
+  starts to the millisecond, so a plain start/end comparison is unreliable).
 
 ## D6 — No connection pool · Lab 3 · code
 
 - **Where**: `inventory` does `new Client()` + `connect()` + `end()` per request.
   Postgres `max_connections=20` in compose.
-- **Symptom**: +20–40 ms per request; under load spikes, `sorry, too many clients
-  already` errors.
+- **Symptom**: +5–10 ms per request; under load spikes, `sorry, too many clients
+  already` errors (`make spike`: ~70 % of checkouts fail at `lab-3-start`, ~2 % after
+  the fix — the PSP tail).
 - **Signal**: a `pg.connect` span in **every** trace; Loki errors linked to traces
   during k6 spikes.
 - **Fix**: module-level `Pool` with sane `max`.
 - **Stretch (optional)**: set `max: 2` → pool exhaustion shows as a **gap** between
   parent start and the DB span; fix by adding a manual `pool.acquire` span.
-- **Verify-3 (part)**: < 5 % of inventory traces contain `pg.connect`; zero
-  "too many clients" errors during spike script.
+- **Verify-3 (part)**: right after a burst of 40 concurrent checkouts, ≤ 1 of 5
+  traced checkouts has an inventory `pg.connect` span; zero "too many clients" errors
+  from inventory in Loki during the burst.
 
 ## D7 — Fails only for a business segment · Lab 4 · code
 
-- **Where**: `catalog/pricing` (or orders' total calc) breaks for orders with
-  **> 6 tickets** (group discount path) → PSP rejects amount (`422`).
-- **Symptom**: ~3 % error rate, no visible pattern by service/endpoint.
+- **Where**: `catalog`'s `PricingService` uses `Price.forGroup(tickets)` for 7+
+  tickets, which returns the discounted **total** of the group, and publishes it as
+  `unitPriceCents`; `orders` multiplies it by the tickets again. The PSP rejects the
+  amount (`422 amount exceeds the per-transaction limit`, 100 000 cents). Planted since
+  `lab-1-start` (with D1 at lab 1, those orders silently stay PENDING).
+- **Symptom**: ~3 % error rate (baseline: 3 % of checkouts have 7–10 tickets), no
+  visible pattern by service/endpoint.
 - **Signal**: only after adding business attributes: TraceQL
   `{ status = error && span.order.tickets > 6 }`.
 - **Fix**: correct the group discount calculation.
