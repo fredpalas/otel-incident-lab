@@ -102,7 +102,12 @@ customer never got the email." Participants find their own `<id>` with a Postgre
 ## Lab 5 — Agent + MCP, and wrap-up (25')
 
 See `docs/05-lab5-ai-mcp.md`. Instructor-led live demo; optional hands-on for those
-with their own MCP-capable agent.
+with their own MCP-capable agent. `make lab N=5` turns coach mode off (`.lab-state`,
+unlocked `opencode.json`); `make mcp-token`; `make incident-5`; `make repro N=5` gives
+the error reference for `PROMPT.md`.
+
+**Verify-5**: D9 (no email / card digits on PSP spans in Tempo) + gold customers can
+check out (fails while incident-5 is live).
 
 Wrap-up topics (in the demo flow, not separate slides): RED from spans, SLO + alert,
 head vs tail sampling and cost, why `correlation_id` survives sampling, Collector as

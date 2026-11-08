@@ -18,6 +18,7 @@ the intro.
 | 1. `AGENTS.md` (instructions) | Codex, Cursor, Copilot, Claude Code (via import), most others | Soft |
 | 2. Pointer files: `CLAUDE.md` (`@AGENTS.md`), `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/workshop.mdc` (`alwaysApply: true`) | Agents that don't read AGENTS.md | Soft |
 | 3. Claude Code hooks in `.claude/settings.json` | Claude Code | Hard-ish (blocks tool calls) |
+| 3b. `opencode.json` permissions (no hooks in opencode: the file itself is locked on `lab-1-start`…`lab-4-solution` and unlocked on `lab-5-start`) | opencode | Hard-ish (deny rules) |
 | 4. `.lab-state` + Makefile | All (source of truth for the active lab) | — |
 | 5. Social: README section + intro slide | Humans | — |
 
@@ -94,6 +95,27 @@ Table-driven: feed hook JSON payloads on stdin, assert decision. Cases at minimu
 | 2 + `INCIDENT_LAB_AUTHOR=1` | Edit | `services/orders/src/x.ts` | allow |
 
 Run in CI.
+
+### The lab 5 incident stays hidden — in every lab
+
+In lab 5 the agent is unlocked, but the demo only works if it *investigates* the
+incident instead of reading it. In **every** lab (5 included) the hook denies Read,
+Grep, Glob and Bash access to: `scenarios/incident-5/**`, `docs/02-defects-catalog.md`,
+`labs/05-ai-mcp/INSTRUCTOR.md`, `labs/05-ai-mcp/SOLUTION.md` (reason: "That's the lab 5
+incident itself 🙂 Investigate it with Grafana…"). The unlocked `opencode.json` has the
+same read/shell denies. For the demo itself, `make incident-5` goes further: the agent
+works in a "legacy" copy (`../ticketing-platform`) with one import commit and none of
+those files, so neither the guard nor the history matters there.
+
+### opencode (`opencode.json`, schema v1 as accepted by opencode 1.17)
+
+- Labs 1–4: `permission.edit` denies `services/**`, `observability/**`,
+  `scenarios/**`; `permission.read` denies the solution/catalog/authoring/incident
+  paths; `permission.bash` denies `make solution*`, `git * lab-*-solution*`,
+  `git apply*`…; the `grafana` MCP server is `enabled: false` and `grafana_*` is denied.
+  Rules are ordered, last match wins, so `"*": "allow"` comes first.
+- Lab 5: `edit` and `bash` → `ask`, the `grafana` MCP server enabled, the incident
+  paths still denied.
 
 ## Participant-facing copy
 
