@@ -18,21 +18,15 @@ export class ReservationService {
     const count = SeatCount.of(command.seats);
 
     return this.unitOfWork.run(async (seats) => {
-      const ids = await seats.availableSeatIds(eventId, count);
-      if (ids.length < count.value) {
+      const available = await seats.findAvailable(eventId, count);
+      if (available.length < count.value) {
         if (!(await seats.eventExists(eventId))) throw new EventNotFoundError(eventId.value);
-        throw new NotEnoughSeatsError(`only ${ids.length} seats left for ${eventId.value}`);
+        throw new NotEnoughSeatsError(`only ${available.length} seats left for ${eventId.value}`);
       }
 
-      const seatIds: string[] = [];
-      for (const id of ids) {
-        const seat = await seats.find(id);
-        if (!seat) throw new NotEnoughSeatsError(`seat ${id.value} disappeared`);
-        seat.reserve(orderId);
-        await seats.save(seat);
-        seatIds.push(seat.id.value);
-      }
-      return { orderId: orderId.value, eventId: eventId.value, seatIds };
+      for (const seat of available) seat.reserve(orderId);
+      await seats.saveAll(available);
+      return { orderId: orderId.value, eventId: eventId.value, seatIds: available.map((seat) => seat.id.value) };
     });
   }
 

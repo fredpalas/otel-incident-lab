@@ -1,4 +1,4 @@
-import { Client } from 'pg';
+import { Client, Pool } from 'pg';
 import { EventId } from '../../src/reservations/domain/EventId';
 import { OrderId } from '../../src/reservations/domain/OrderId';
 import { SeatCount } from '../../src/reservations/domain/SeatCount';
@@ -8,6 +8,7 @@ import { testDatabaseUrl } from './database';
 
 describe('PgSeatRepository', () => {
   let db: Client;
+  let pool: Pool;
   let unitOfWork: PgUnitOfWork;
   let eventId: EventId;
   let orderId: OrderId;
@@ -17,12 +18,16 @@ describe('PgSeatRepository', () => {
     await new InventorySchema().onModuleInit();
     db = new Client({ connectionString: testDatabaseUrl() });
     await db.connect();
+    pool = new Pool({ connectionString: testDatabaseUrl(), max: 2 });
   });
 
-  afterAll(() => db.end());
+  afterAll(async () => {
+    await pool.end();
+    await db.end();
+  });
 
   beforeEach(() => {
-    unitOfWork = new PgUnitOfWork();
+    unitOfWork = new PgUnitOfWork(pool);
     eventId = EventId.of('evt_2');
     orderId = OrderId.of('0190b0f2-0000-7000-8000-00000000a001');
   });
@@ -31,38 +36,35 @@ describe('PgSeatRepository', () => {
 
   test('finds available seats and persists a reservation', async () => {
     const reserved = await unitOfWork.run(async (seats) => {
-      const [id] = await seats.availableSeatIds(eventId, SeatCount.of(1));
-      const seat = await seats.find(id);
-      seat?.reserve(orderId);
-      if (seat) await seats.save(seat);
-      return id;
+      const available = await seats.findAvailable(eventId, SeatCount.of(3));
+      for (const seat of available) seat.reserve(orderId);
+      await seats.saveAll(available);
+      return available.map((seat) => seat.id.value);
     });
 
-    const { rows } = await db.query('SELECT status, order_id FROM seats WHERE id = $1', [reserved.value]);
-    expect(rows[0]).toEqual({ status: 'RESERVED', order_id: orderId.value });
+    const { rows } = await db.query('SELECT status, order_id FROM seats WHERE id = ANY($1)', [reserved]);
+    expect(rows).toEqual(Array(3).fill({ status: 'RESERVED', order_id: orderId.value }));
   });
 
   test('available seats exclude reserved ones', async () => {
     const first = await unitOfWork.run(async (seats) => {
-      const ids = await seats.availableSeatIds(eventId, SeatCount.of(2));
-      const seat = await seats.find(ids[0]);
-      seat?.reserve(orderId);
-      if (seat) await seats.save(seat);
-      return ids[0];
+      const [seat] = await seats.findAvailable(eventId, SeatCount.of(1));
+      seat.reserve(orderId);
+      await seats.saveAll([seat]);
+      return seat.id.value;
     });
 
-    const next = await unitOfWork.run((seats) => seats.availableSeatIds(eventId, SeatCount.of(2)));
+    const next = await unitOfWork.run((seats) => seats.findAvailable(eventId, SeatCount.of(2)));
 
-    expect(next.map((id) => id.value)).not.toContain(first.value);
+    expect(next.map((seat) => seat.id.value)).not.toContain(first);
   });
 
   test('a failed unit of work rolls back', async () => {
     await expect(
       unitOfWork.run(async (seats) => {
-        const [id] = await seats.availableSeatIds(eventId, SeatCount.of(1));
-        const seat = await seats.find(id);
-        seat?.reserve(orderId);
-        if (seat) await seats.save(seat);
+        const [seat] = await seats.findAvailable(eventId, SeatCount.of(1));
+        seat.reserve(orderId);
+        await seats.saveAll([seat]);
         throw new Error('boom');
       }),
     ).rejects.toThrow('boom');
@@ -73,11 +75,9 @@ describe('PgSeatRepository', () => {
 
   test('releases every seat held for an order', async () => {
     await unitOfWork.run(async (seats) => {
-      for (const id of await seats.availableSeatIds(eventId, SeatCount.of(2))) {
-        const seat = await seats.find(id);
-        seat?.reserve(orderId);
-        if (seat) await seats.save(seat);
-      }
+      const available = await seats.findAvailable(eventId, SeatCount.of(2));
+      for (const seat of available) seat.reserve(orderId);
+      await seats.saveAll(available);
     });
 
     await unitOfWork.run((seats) => seats.releaseFor(orderId));
