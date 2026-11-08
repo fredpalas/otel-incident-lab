@@ -31,11 +31,11 @@ export class Price {
   }
 
   unitPriceFor(tickets: TicketQuantity): Money {
-    return tickets.value >= GROUP_SIZE ? this.forGroup(tickets) : this.amount;
+    return tickets.value >= GROUP_SIZE ? this.forGroup() : this.amount;
   }
 
-  /** Group bookings get 10 % off. */
-  private forGroup(tickets: TicketQuantity): Money {
-    return this.amount.times(tickets.value).applyDiscount(GROUP_DISCOUNT);
+  /** Price of each ticket in a group booking: 10 % off. */
+  private forGroup(): Money {
+    return this.amount.applyDiscount(GROUP_DISCOUNT);
   }
 }

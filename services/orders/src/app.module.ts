@@ -18,6 +18,8 @@ import { OutboxRelay } from './orders/infrastructure/messaging/OutboxRelay';
 import { PgOrderRepository } from './orders/infrastructure/persistence/PgOrderRepository';
 import { Logger } from './shared/application/Logger';
 import { PinoLogger } from './shared/infrastructure/PinoLogger';
+import { Tracer } from './shared/application/Tracer';
+import { OtelTracer } from './shared/infrastructure/OtelTracer';
 
 @Module({
   controllers: [OrdersController, HealthController],
@@ -32,6 +34,7 @@ import { PinoLogger } from './shared/infrastructure/PinoLogger';
     { provide: Pricing, useClass: HttpPricing },
     { provide: Customers, useClass: HttpCustomers },
     { provide: Logger, useClass: PinoLogger },
+    { provide: Tracer, useClass: OtelTracer },
   ],
 })
 export class AppModule implements OnApplicationShutdown {

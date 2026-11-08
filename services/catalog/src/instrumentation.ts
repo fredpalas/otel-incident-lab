@@ -2,10 +2,19 @@
 // express, nestjs, pg, fetch (undici) and pino as they are first required.
 // Service name and Collector endpoint come from the standard OTEL_* env vars.
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { ALLOW_ALL_BAGGAGE_KEYS, BaggageSpanProcessor } from '@opentelemetry/baggage-span-processor';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
 import { ExpressLayerType } from '@opentelemetry/instrumentation-express';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace';
 
 const sdk = new NodeSDK({
+  spanProcessors: [
+    // Copies Baggage entries (correlation_id) onto every span this service starts.
+    new BaggageSpanProcessor(ALLOW_ALL_BAGGAGE_KEYS),
+    // Listing processors replaces the default exporter, so it has to be here too.
+    new BatchSpanProcessor({ exporter: new OTLPTraceExporter() }),
+  ],
   instrumentations: [
     getNodeAutoInstrumentations({
       // Low-level noise that buries the spans that matter when reading a trace.

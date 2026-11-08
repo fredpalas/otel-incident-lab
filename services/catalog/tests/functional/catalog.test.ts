@@ -25,6 +25,12 @@ describe('catalog HTTP API', () => {
     expect(res.body.unitPriceCents).toBe(3150);
   });
 
+  test('GET /pricing/:eventId quotes the group unit price from 7 tickets', async () => {
+    const res = await request(app.getHttpServer()).get('/pricing/evt_1?tickets=7').expect(200);
+
+    expect(res.body.unitPriceCents).toBe(4050);
+  });
+
   test('GET /pricing/:eventId is 404 for an event without a price', async () => {
     await request(app.getHttpServer()).get('/pricing/evt_nope?tickets=1').expect(404);
   });

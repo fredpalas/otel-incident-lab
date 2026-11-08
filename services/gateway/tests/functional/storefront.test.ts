@@ -41,6 +41,15 @@ describe('gateway HTTP API', () => {
     });
   });
 
+  test('every response carries the correlation id of its request, for support', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/checkout')
+      .send({ customerId: 'cus_1', eventId: 'evt_1', tickets: 2 })
+      .expect(201);
+
+    expect(res.headers['x-correlation-id']).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
   test('client errors from orders are passed through', async () => {
     const res = await request(app.getHttpServer())
       .post('/checkout')
