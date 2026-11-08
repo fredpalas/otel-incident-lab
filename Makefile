@@ -4,7 +4,7 @@ COMPOSE := docker compose
 TOOLS := $(COMPOSE) --profile tools
 
 .DEFAULT_GOAL := help
-.PHONY: help pull up down reset doctor load spike lab solution save where verify repro incident-5 check-n
+.PHONY: help pull up down reset doctor load spike lab solution save where verify repro incident-5 mcp-token check-n
 
 help: ## Show this help
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  make %-12s %s\n", $$1, $$2}'
@@ -56,8 +56,11 @@ verify: check-n ## Check whether lab N is done: make verify N=1
 repro: check-n ## Reproduce the incident of lab N: make repro N=1
 	$(TOOLS) run --rm k6 run /scripts/repro-$(N).js
 
-incident-5: ## Apply the lab 5 incident (instructor)
-	@echo "incident-5 is not available yet"; exit 1
+incident-5: ## Lab 5 (instructor): legacy copy with the incident in ../ticketing-platform [BASE=main] [DIR=…]
+	@sh scripts/incident-5.sh "$(or $(BASE),HEAD)" "$(or $(DIR),../ticketing-platform)"
+
+mcp-token: ## Lab 5: create a Viewer token for the Grafana MCP server (.env.mcp)
+	@sh scripts/mcp-token.sh
 
 check-n:
 	@case "$(N)" in ''|*[!0-9]*) echo "usage: make $(MAKECMDGOALS) N=<lab number>"; exit 2;; esac
